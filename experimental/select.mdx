@@ -1,0 +1,103 @@
+---
+title: "Select Operator for Competing Remaps in xremap"
+sidebarTitle: "Select"
+description: "Use xremap's select operator to choose between competing experimental_map operators like double-tap, oneshot, and throttle based on priority order."
+---
+
+The `select` operator lets you stack multiple `experimental_map` operators on the same key and have xremap pick exactly one based on priority order. The first operator that matches gets all the key events; the others are discarded. This lets you express nuanced behaviours like "double tap for one action, otherwise treat it as a oneshot modifier."
+
+<Warning>
+  `select` lives in the `experimental_map` configuration section. Experimental features may have **breaking changes in any version update** of xremap. Changes will be noted in `CHANGELOG.md`. Features available in `modmap` — such as `device`, `mode`, key-to-key mapping, multi-purpose key, and press/release — do **not** work inside `experimental_map`. Application-specific remapping via `application` and `window` works since **v0.15.5**.
+</Warning>
+
+## How It Works
+
+`select` takes an ordered list of operators. Each operator in the list is a small program that processes incoming key events and decides whether it matches. xremap evaluates them in order:
+
+- Key events are **buffered** while operators decide.
+- The **first operator that matches** receives all events; every other operator receives nothing and has no visible effect.
+- If no operator matches within its timeout, events fall through to `modmap` as normal.
+
+<Note>
+  Operators should use **short timeouts** inside a `select` block. Because events are buffered until a decision is made, a long timeout will cause a noticeable pause before any key output appears. Keep timeouts short enough that the delay is imperceptible.
+</Note>
+
+The operators that work with `select` are: [double tap](/experimental/double-tap), [chords](/experimental/chords), [oneshot](/experimental/oneshot), and [throttle](/experimental/throttle).
+
+## Syntax
+
+```yaml
+experimental_map:
+  - remap:
+      KEY:
+        select:
+          - operator1
+          - operator2
+          - ...
+```
+
+Each list item is a full operator definition, the same as you would write directly on a key.
+
+## Examples
+
+### Fast and slow double tap
+
+Two `double` operators with different timeouts let you map two distinct actions to the same key depending on how quickly you tap it. The first `double` has priority — if it matches (tap within 150ms), it fires. If it does not match, the second `double` gets a chance with its 300ms window. If neither matches, the event falls through:
+
+```yaml
+experimental_map:
+  - remap:
+      A:
+        select:
+          - double: B
+            timeout: 150
+          - double: C
+            timeout: 300  # This timeout is measured from the original key press.
+```
+
+### Double tap, otherwise oneshot
+
+Double-tap for one action; a single tap-and-release activates a oneshot modifier. If the `double` operator does not match within its default 200ms, the `oneshot` action fires instead:
+
+```yaml
+experimental_map:
+  - remap:
+      s_l:
+        select:
+          - { double: B }
+          - { oneshot: s_l }
+```
+
+<Note>
+  An active oneshot emits a press of its key to the next level when cancelled. Because of this, the first `s_l` in a double-tap while oneshot is active will cancel oneshot and pass through, and the second `s_l` will not activate `double`. This means oneshot reactivates rather than double tap firing — a counterintuitive interaction to be aware of.
+</Note>
+
+## Equivalence to Separate Remap Entries
+
+A `select` block with multiple operators is equivalent to writing separate `remap` groups for the same key. The example above is identical to:
+
+```yaml
+experimental_map:
+  - remap:
+      s_l: { double: B }
+  - remap:
+      s_l: { oneshot: s_l }
+```
+
+This works because both `remap` groups share the same `application` and `window` matcher (none in this case). xremap ultimately collects all entries in `experimental_map` into a single ordered list.
+
+<Tip>
+  The reason to use multiple `remap` groups rather than `select` is to attach **different properties** — like `application` or `window` context — to each entry. If you need different context matchers per operator, use separate `remap` groups. If the matchers are the same, `select` is more concise.
+</Tip>
+
+## `experimental_map` Restrictions
+
+The following features from `modmap` are **not available** inside `experimental_map`:
+
+- `device` filtering
+- `mode` switching
+- Key-to-key mapping
+- Multi-purpose key (`held`/`alone`)
+- `press`/`release` event handling
+
+`application` and `window` context matching **do** work since v0.15.5.

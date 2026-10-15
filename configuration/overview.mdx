@@ -1,0 +1,128 @@
+---
+title: "xremap Configuration File Structure"
+sidebarTitle: "Overview"
+description: "Understand the structure of xremap's YAML config file: modmap, keymap, experimental_map, global options, and how key events flow through each layer."
+---
+
+xremap reads its configuration from one or more YAML files. The format is also fully JSON-compatible, so you can generate configuration programmatically from languages like Ruby or Python. At its core, a config file declares what to do with incoming key events — which keys to swap, which combinations to intercept, and under what conditions.
+
+## File format
+
+Configuration files are written in **YAML** (a superset of JSON). File names conventionally end in `.yml` or `.yaml`, though xremap accepts any path you give it on the command line.
+
+```yaml
+# Minimal working config
+modmap:
+  - remap:
+      CapsLock: Esc
+
+keymap:
+  - remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+```
+
+## How key events flow
+
+When a physical key is pressed, xremap processes it in a fixed pipeline:
+
+```
+Physical key press
+      │
+      ▼
+  [ modmap ]   ← key-to-key substitution (e.g. CapsLock → Ctrl_L)
+      │
+      ▼
+  [ keymap ]   ← combination / sequence / action dispatch
+      │
+      ▼
+ Emitted to OS via uinput
+```
+
+<Note>
+  Because `modmap` output feeds into `keymap`, a `modmap` rule that remaps `CapsLock → Ctrl_L` means any `keymap` rule written as `Ctrl-X` will also fire when you press the physical CapsLock key plus X.
+</Note>
+
+## Three top-level sections
+
+| Section | Purpose |
+|---|---|
+| [`modmap`](/configuration/modmap) | Key-to-key remapping — swap, disable, or give a key dual purpose |
+| [`keymap`](/configuration/keymap) | Remap key combinations, sequences, and trigger actions |
+| `experimental_map` | Experimental mappings (subject to change without notice) |
+
+## Global options
+
+The following top-level fields tune xremap's runtime behaviour. Each is optional and has a safe default.
+
+| Option | Type | Default | Summary |
+|---|---|---|---|
+| `virtual_modifiers` | list of keys | `[]` | Treat ordinary keys as modifier keys |
+| `keypress_delay_ms` | integer | `0` | Delay (ms) between events inside keymap combos |
+| `throttle_ms` | integer | `0` | Slow down all synthetic events |
+| `default_mode` | string | `"default"` | Starting mode when xremap launches |
+| `notifications` | boolean | `false` | Show desktop notifications on load/reload |
+| `config_watch_debounce_ms` | integer | `0` | Debounce delay for `--watch=config` |
+| `enable_wheel` | boolean | `true` | Whether the output device advertises wheel events |
+| `shared` | any | — | Arbitrary data for YAML anchors/aliases |
+
+Full documentation for every option is on the [Global Options](/configuration/options) page.
+
+## Multiple config files
+
+xremap accepts more than one config file on the command line. The `modmap`, `keymap`, and `virtual_modifiers` sections from subsequent files are **merged** into the first file's configuration:
+
+```bash
+xremap config1.yml config2.yml config3.yml
+```
+
+This is useful for splitting a large configuration into logical groups (base bindings, application overrides, device-specific tweaks) without duplicating common settings.
+
+## The `shared` field and YAML anchors
+
+The `shared` field is a scratch space that xremap ignores at runtime. Its value is never interpreted as remapping instructions. Its purpose is to hold [YAML anchors](https://yaml.org/spec/1.2.2/#3222-anchors-and-aliases) so you can reuse lists and mappings elsewhere in the same file without repeating yourself:
+
+```yaml
+shared:
+  terminals: &terminals
+    - Gnome-terminal
+    - Kitty
+
+  common_emacs: &common_emacs
+    C-f: right
+    C-b: left
+    C-n: down
+    C-p: up
+
+keymap:
+  - application:
+      only: *terminals
+    remap: *common_emacs
+```
+
+## Minimal working example
+
+The config below remaps CapsLock to Escape at the hardware level (via `modmap`) and adds Emacs-style cursor movement everywhere (via `keymap`):
+
+```yaml
+modmap:
+  - name: Global modifiers
+    remap:
+      CapsLock: Esc
+
+keymap:
+  - name: Emacs cursor movement
+    remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+      Ctrl-F: Right
+      Ctrl-B: Left
+```
+
+## Related pages
+
+- [modmap reference](/configuration/modmap) — key-to-key remapping and multi-purpose keys
+- [keymap reference](/configuration/keymap) — combos, sequences, and actions
+- [App & Device Filters](/configuration/application-device-filtering) — per-application and per-device rules
+- [Modes](/configuration/modes) — enable/disable groups of remappings dynamically
+- [Global Options](/configuration/options) — `virtual_modifiers`, `throttle_ms`, and more

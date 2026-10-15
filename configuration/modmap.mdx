@@ -1,0 +1,219 @@
+---
+title: "Configuring modmap in xremap"
+sidebarTitle: "modmap"
+description: "The modmap section remaps individual keys. Learn key-to-key mapping, multi-purpose keys, disabling keys, and application or device filters."
+---
+
+The `modmap` section is xremap's layer for **key-to-key** remapping. Think of it as a programmable keyboard firmware: every physical key press passes through `modmap` first, gets translated according to your rules, and then the translated key continues on to the `keymap` layer. This ordering is important — if you remap `CapsLock` to `Ctrl_L` in `modmap`, any `keymap` rule that references `Ctrl` will automatically fire when you physically press CapsLock.
+
+<Note>
+  Remapping a key **to** a modifier (e.g. `CapsLock: Ctrl_L`) must be done in `modmap`. The `keymap` section treats modifier keys differently and cannot be used for this purpose.
+</Note>
+
+## Structure
+
+`modmap` is a **list** of modmap entries. Each entry can have:
+
+<ParamField path="name" type="string">
+  Optional human-readable label. Shown in debug logs and useful for understanding which rule fired.
+</ParamField>
+
+<ParamField path="remap" type="map" required>
+  A mapping of source key names to destination key names or remap objects. See remap types below.
+</ParamField>
+
+<ParamField path="application" type="object">
+  Restrict this entry to specific applications. See [App & Device Filters](/configuration/application-device-filtering).
+</ParamField>
+
+<ParamField path="window" type="object">
+  Restrict this entry to windows whose title matches a regex. See [App & Device Filters](/configuration/application-device-filtering).
+</ParamField>
+
+<ParamField path="device" type="object">
+  Restrict this entry to specific input devices. See [App & Device Filters](/configuration/application-device-filtering).
+</ParamField>
+
+<ParamField path="mode" type="string | string[]">
+  Only activate this entry when xremap is in one of the listed modes. If absent, the entry is always active. See [Modes](/configuration/modes).
+</ParamField>
+
+```yaml
+modmap:
+  - name: My entry       # optional
+    remap:
+      KEY_XXX: KEY_YYY
+    application:
+      only: [MyApp]
+    device:
+      not: [event0]
+    mode: default
+```
+
+## Remap types
+
+### Single key → single key
+
+The simplest form maps one key to another. Key names are case-insensitive and the `KEY_` prefix is optional, so `KEY_CAPSLOCK`, `CAPSLOCK`, and `CapsLock` are all identical.
+
+```yaml
+modmap:
+  - remap:
+      CapsLock: Esc      # CapsLock → Escape
+      Esc: CapsLock      # Escape → CapsLock (swap)
+      Ctrl_L: Esc        # Left Control → Escape
+```
+
+### Single key → multiple keys
+
+Map one key to a list of keys that are all pressed and released simultaneously:
+
+```yaml
+modmap:
+  - remap:
+      KEY_XXX: [KEY_YYY, KEY_ZZZ]
+```
+
+### Disable a key
+
+Map a key to an empty list to swallow it completely — no key event is forwarded:
+
+```yaml
+modmap:
+  - remap:
+      F9: []   # F9 is now silenced
+```
+
+### Multi-purpose key (held vs. alone)
+
+One of xremap's most powerful features: assign a different key depending on whether the key is **held** (used as a modifier) or **tapped alone**. A classic example is making CapsLock act as Ctrl when held but Escape when tapped:
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        held: Ctrl_L              # Sent while CapsLock is held with other keys
+        alone: Esc                # Sent when CapsLock is tapped and released alone
+        hold_threshold_millis: 0  # Optional. How long before "held" activates (default 0)
+        alone_timeout_millis: 1000 # Optional. Tap must complete within this window (default 1000)
+        free_hold: false          # Optional. Default false
+```
+
+Both `held` and `alone` accept arrays, so you can send multiple keys in either case.
+
+<ParamField path="held" type="key | key[]" required>
+  The key (or keys) emitted while this key is held down in combination with other keys.
+</ParamField>
+
+<ParamField path="alone" type="key | key[]" required>
+  The key (or keys) emitted when this key is pressed and released without any other key in between.
+</ParamField>
+
+<ParamField path="hold_threshold_millis" type="integer" default="0">
+  Minimum time in milliseconds the key must be held before it is considered "held". Useful to prevent accidental modifier activation.
+</ParamField>
+
+<ParamField path="alone_timeout_millis" type="integer" default="1000">
+  Maximum time in milliseconds the tap must complete within to trigger the `alone` action.
+</ParamField>
+
+<ParamField path="free_hold" type="boolean" default="false">
+  When `true`, the held key is released as soon as the co-pressed key is released, rather than waiting for the trigger key itself to be released.
+</ParamField>
+
+<ParamField path="interruptable" type="boolean">
+  Controls whether rapid subsequent key presses interrupt the alone/held decision.
+</ParamField>
+
+### Press/release key
+
+For advanced use-cases you can dispatch a sequence of keymap actions when a key is pressed, held (repeated), or released. This lets you trigger commands or switch modes directly from `modmap`:
+
+```yaml
+modmap:
+  - remap:
+      KEY_XXX:
+        skip_key_event: true   # Optional. Suppress the original key event (default false)
+        press:                 # Optional. Actions on key-down
+          - press: KEY_YYY
+          - launch: ["xdotool", "mousemove", "0", "7200"]
+        repeat:                # Optional. Actions while key is held (repeat events)
+          repeat: KEY_YYY
+        release:               # Optional. Actions on key-up
+          - release: KEY_YYY
+          - set_mode: my_mode
+```
+
+<Note>
+  For a full list of available actions (`launch`, `set_mode`, `press`, `release`, etc.) see the [Actions reference](/reference/press-release-key).
+</Note>
+
+## Filtering by application, window, or device
+
+Any modmap entry can be scoped to a specific context. Filters are described in detail on the [App & Device Filters](/configuration/application-device-filtering) page. A quick preview:
+
+```yaml
+modmap:
+  - name: Kana key → Alt only in JetBrains IDEs
+    application:
+      only: jetbrains-idea
+    remap:
+      KatakanaHiragana: Alt_L
+
+  - name: Kana key → Super everywhere else
+    application:
+      not: jetbrains-idea
+    remap:
+      KatakanaHiragana: Win_R
+```
+
+## Mode-gated entries
+
+Add `mode:` to activate an entry only in certain modes:
+
+```yaml
+modmap:
+  - name: Gaming WASD movement
+    mode: gaming
+    remap:
+      W: Up
+      A: Left
+      S: Down
+      D: Right
+```
+
+See the [Modes](/configuration/modes) page for how to create and switch modes.
+
+## Real-world example
+
+The following is adapted from the [example config](https://github.com/k0kubun/xremap/blob/master/example/config.yml) and illustrates several modmap techniques together:
+
+```yaml
+modmap:
+  - name: Global key swaps
+    remap:
+      # CapsLock and left Ctrl both become Escape
+      CapsLock: Esc
+      Ctrl_L: Esc
+
+      # HHKB layout remapping
+      Alt_L: Ctrl_R       # Alt_L → Right Ctrl (for Ctrl+Click)
+      Muhenkan: Ctrl_L    # Muhenkan → Left Ctrl
+      Henkan: Shift_L     # Henkan → Left Shift
+
+  - name: Kana key → Super (all apps except IDEA)
+    application:
+      not: jetbrains-idea
+    remap:
+      KatakanaHiragana: Win_R
+
+  - name: Kana key → Alt (IDEA only)
+    application:
+      only: jetbrains-idea
+    remap:
+      KatakanaHiragana: Alt_L
+```
+
+<Tip>
+  Key names are listed in the [evdev scancodes reference](https://github.com/emberian/evdev/blob/1d020f11b283b0648427a2844b6b980f1a268221/src/scancodes.rs#L26-L572). Skip the `KEY_` prefix and use any casing. Use `RUST_LOG=debug xremap config.yml` to discover unknown key names by pressing them.
+</Tip>

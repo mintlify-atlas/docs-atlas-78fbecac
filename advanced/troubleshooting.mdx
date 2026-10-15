@@ -1,0 +1,179 @@
+---
+title: "Troubleshooting xremap"
+sidebarTitle: "Troubleshooting"
+description: "Debug common xremap issues: missing key events, app-specific remapping failures, permission errors, uinput not loaded, and slow key event timing."
+---
+
+Most xremap issues fall into a small number of categories: permission problems, timing issues, application detection failures, and missing system dependencies. This page covers the most common problems and how to resolve them, starting with how to get useful diagnostic output.
+
+## Getting debug logs
+
+The fastest way to diagnose any xremap problem is to enable verbose logging. Set the `RUST_LOG` environment variable when running xremap:
+
+```bash
+RUST_LOG=debug xremap config.yml
+```
+
+Available log levels in increasing order of verbosity: `error`, `warn`, `info`, `debug`.
+
+<Warning>
+  The `debug` level logs **every keystroke** you type. This is a security risk — do not leave debug logging enabled during normal use, and be careful about where the output is stored or shared.
+</Warning>
+
+## Common issues
+
+<Accordion title="How do I find the key name for a key on my keyboard?">
+  Start xremap with debug logging enabled. Every key event is printed as it arrives, including the key name:
+
+  ```bash
+  RUST_LOG=debug xremap config.yml
+  ```
+
+  Press the key you want to identify and look for a line like:
+
+  ```text
+  DEBUG xremap: key event: KEY_KPMINUS, Press
+  ```
+
+  The `KEY_*` identifier is what you use in your config file.
+</Accordion>
+
+<Accordion title="Remapping works but fails sometimes or in certain applications">
+  This is usually caused by xremap emitting key events faster than the receiving application can process them. Add a small delay to your config file:
+
+  ```yaml
+  keypress_delay_ms: 10
+  # Rest of your config file
+  ```
+
+  `10 ms` is a good starting point. Try `100 ms` if you want to confirm this is the cause before tuning it down — but don't leave a large value in place, as it will make your keyboard feel sluggish.
+
+  Alternatively, use the throttle option:
+
+  ```yaml
+  throttle_ms: 10
+  # Rest of your config file
+  ```
+</Accordion>
+
+<Accordion title="Application-specific remapping doesn't work">
+  First, check what desktop client xremap has detected. Look in the startup output for a line like:
+
+  ```text
+  application-client: GNOME (supported: true)
+  ```
+
+  If `supported: false` appears, xremap cannot detect the active window on your desktop and application-specific rules will never fire.
+
+  **Check your desktop feature flag.** You may have installed the wrong xremap binary. The installation page lists which feature flag corresponds to which desktop environment.
+
+  **Running as sudo?** Extra setup steps are required. See the [running with sudo guide](/running/with-sudo) for details.
+</Accordion>
+
+<Accordion title="Application-specific remapping doesn't work on GNOME Wayland">
+  xremap uses a GNOME Shell extension to detect the active window. Verify it is installed and responding:
+
+  ```bash
+  busctl --user call org.gnome.Shell /com/k0kubun/Xremap com.k0kubun.Xremap WMClasses
+  ```
+
+  This should return a list of currently open windows. If it returns an error or nothing, the extension is not installed correctly — reinstall it following the GNOME installation instructions.
+
+  If you run xremap with `sudo`, the `busctl` command must work both with and without `sudo`. If it fails under `sudo`, follow the [GNOME + sudo instructions](/running/with-sudo).
+</Accordion>
+
+<Accordion title="Application-specific remapping doesn't work on COSMIC desktop">
+  Only the latest **Wayland** version of COSMIC is supported by `xremap-cosmic`. If you are on an older release of COSMIC, switch to `xremap-x11` to regain application-specific remapping.
+</Accordion>
+
+<Accordion title="How do I find my desktop session information?">
+  Run the following to print the relevant environment variables in one go:
+
+  ```bash
+  echo XDG_SESSION_TYPE=$XDG_SESSION_TYPE
+  echo XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
+  echo XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
+  echo WAYLAND_DISPLAY=$WAYLAND_DISPLAY
+  echo XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR
+  ```
+
+  Include this output when filing a bug report or asking for help.
+</Accordion>
+
+<Accordion title="Error: Failed to prepare an output device — No such device">
+  This error means the `uinput` kernel module is not loaded. xremap needs `/dev/uinput` to create its virtual keyboard/mouse device.
+
+  Check whether the device node exists:
+
+  ```bash
+  ls -l /dev/uinput
+  ```
+
+  If the output is empty or the file is missing, load the module immediately:
+
+  ```bash
+  sudo modprobe uinput
+  ```
+
+  To make the module load automatically on every boot:
+
+  ```bash
+  echo uinput | sudo tee /etc/modules-load.d/uinput.conf
+  ```
+
+  If the problem persists after loading the module, a reboot may be required.
+</Accordion>
+
+<Accordion title="Error: running command [notify-send, -a, xremap, Ready]">
+  xremap uses the `notify-send` binary to send desktop notifications. It is present on most distributions but may be missing on minimal installs. Install the appropriate package for your distro:
+
+  ```bash
+  # Debian / Ubuntu
+  sudo apt install libnotify-bin
+
+  # Fedora / RHEL
+  sudo dnf install notify-send
+
+  # Arch Linux
+  sudo pacman --sync libnotify
+
+  # openSUSE
+  sudo zypper install libnotify-tools
+  ```
+</Accordion>
+
+<Accordion title="Disable-touchpad-while-typing stops working after installing xremap">
+  libinput suppresses the touchpad when it detects typing on a keyboard it considers "internal". Because xremap replaces your physical keyboard with a virtual device named `xremap`, libinput may no longer recognise it as an internal keyboard and disable the feature.
+
+  **Fix:** Create (or edit) the libinput quirks override file:
+
+  1. Open `/etc/libinput/local-overrides.quirks` (create it if it does not exist).
+  2. Add the following section:
+
+  ```ini
+  [xremap]
+  MatchName=xremap
+  MatchUdevType=keyboard
+  AttrKeyboardIntegration=internal
+  ```
+
+  3. Restart your session and test.
+
+  If the issue persists, it may also be necessary to "pair" the virtual keyboard and touchpad devices at the udev level. See the [Mac-Keyboard-Style-On-Linux](https://github.com/Anas-Alhariri/Mac-Keyboard-Style-On-Linux/blob/213c0552d048d8d681bf16d31f63ce08c42b5e98/touchpad-disable-while-typing-fix.sh) script for an example approach.
+</Accordion>
+
+<Accordion title="A special device like a trackball stops working after xremap starts">
+  xremap merges all grabbed input devices into a single virtual output device. The operating system sees events from `xremap` rather than from the individual physical devices, which can break device-class-specific behaviour like trackball scrolling.
+
+  **Fix:** Add a udev rule that tells the OS the xremap virtual device is a trackball:
+
+  ```text
+  ACTION=="add", SUBSYSTEM=="input", ATTRS{name}=="xremap", ENV{ID_INPUT_TRACKBALL}="1"
+  ```
+
+  Place this rule in a file such as `/etc/udev/rules.d/99-xremap.rules` and reload udev rules:
+
+  ```bash
+  sudo udevadm control --reload-rules
+  ```
+</Accordion>

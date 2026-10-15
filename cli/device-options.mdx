@@ -1,0 +1,214 @@
+---
+title: "Device Selection Options in xremap"
+sidebarTitle: "Device Options"
+description: "Control which input devices xremap captures using --device, --ignore, and --mouse. Includes path, name, and vendor/product ID matching."
+---
+
+xremap sits between your physical input devices and the rest of the system by grabbing them exclusively through the Linux `evdev` API. Knowing which devices to grab — and which to leave alone — is therefore one of the most important pieces of configuration. The flags on this page give you full control over that selection, from a single keyboard to complex multi-device setups.
+
+---
+
+## --device
+
+<ParamField path="--device" type="DEVICE">
+  Limit xremap to capturing only the specified input device(s). When this flag is omitted, xremap grabs every device it identifies as a keyboard.
+
+  Accepted value formats:
+
+  | Format | Example |
+  |--------|---------|
+  | Full `/dev/input/` path | `/dev/input/event4` |
+  | Filename only | `event4` |
+  | Full device name | `Logitech USB Keyboard` |
+  | Substring of name | `Logitech` |
+  | Vendor + product ID | `ids:0x3f0:0x24` |
+
+  <Tip>
+    Run `xremap --list-devices` to see all available devices and their exact names and paths before writing your filter.
+  </Tip>
+</ParamField>
+
+### Selecting multiple devices
+
+You can specify more than one device in two equivalent ways:
+
+<CodeGroup>
+```bash Comma-separated
+xremap --device "first device,second device" config.yml
+```
+
+```bash Repeated flag
+xremap --device "first device" --device "second device" config.yml
+```
+</CodeGroup>
+
+Both forms result in xremap grabbing exactly those two devices and ignoring all others.
+
+---
+
+## --ignore
+
+<ParamField path="--ignore" type="IGNORE">
+  Exclude a device from capture even when xremap would otherwise grab it. Accepts exactly the same value formats as `--device` (full path, filename, name, substring, or vendor/product ID pair).
+
+  This is the inverse of `--device`: instead of an allowlist you are building a denylist. It is most useful when you want to grab all keyboards on the system except one — for example, keeping a built-in laptop keyboard available while remapping only an external one.
+
+  ```bash
+  # Grab all keyboards, but leave the internal laptop keyboard alone
+  xremap --ignore "AT Translated Set 2 keyboard" config.yml
+  ```
+</ParamField>
+
+---
+
+## --mouse
+
+<ParamField path="--mouse" type="boolean" default="false">
+  By default xremap considers only keyboard-type devices. Pass `--mouse` to also listen to mouse devices (relative-axis devices).
+
+  ```bash
+  xremap --mouse config.yml
+  ```
+
+  <Warning>
+    Trackpads, drawing tablets, and other **absolute positioning** devices are **not supported** even with `--mouse`. xremap's event model is designed around discrete key/button events.
+  </Warning>
+</ParamField>
+
+---
+
+## --list-devices
+
+<ParamField path="--list-devices" type="flag">
+  Print a compact summary of every available input device — name, path, and identifiers — then exit without starting xremap. No config file is required and no special permissions are needed beyond being able to read `/dev/input/`.
+
+  ```bash
+  xremap --list-devices
+  ```
+
+  Example output:
+
+  ```
+  /dev/input/event3:   Logitech USB Keyboard
+  /dev/input/event5:   SteelSeries SteelSeries Apex Pro TKL
+  /dev/input/event8:   Logitech G502 HERO Gaming Mouse
+  ```
+
+  Use this output to find the exact string to pass to `--device` or `--ignore`.
+</ParamField>
+
+---
+
+## --device-details
+
+<ParamField path="--device-details" type="flag">
+  Print detailed information about every input device — including vendor ID, product ID, bus type, and supported event types — then exit.
+
+  ```bash
+  xremap --device-details
+  ```
+
+  This is the right tool when you need the raw vendor and product IDs for `ids:` matching, or when you want to inspect which keys a device reports.
+</ParamField>
+
+---
+
+## --output-device-name
+
+<ParamField path="--output-device-name" type="NAME" default="xremap  or  xremap pid=xx">
+  Choose the name that xremap's virtual `uinput` output device will advertise to the kernel and other userspace tools.
+
+  ```bash
+  xremap --output-device-name "My Virtual Keyboard" config.yml
+  ```
+
+  The default is `xremap` when only one instance is running. When multiple instances are detected, the default becomes `xremap pid=<pid>` to avoid name collisions. Setting an explicit name is useful when another tool (e.g. a second xremap instance, an input-recording utility, or a Wayland compositor rule) needs to identify the virtual device by name.
+</ParamField>
+
+---
+
+## --vendor and --product
+
+<ParamField path="--vendor" type="VENDOR" default="0x1234">
+  Set the vendor ID reported by xremap's virtual output device. Must be given in hexadecimal, with or without the `0x` prefix.
+
+  ```bash
+  xremap --vendor 0x1234 config.yml
+  xremap --vendor 1234 config.yml   # equivalent
+  ```
+</ParamField>
+
+<ParamField path="--product" type="PRODUCT" default="0x5678">
+  Set the product ID reported by xremap's virtual output device. Same hexadecimal format as `--vendor`.
+
+  ```bash
+  xremap --product 0x5678 config.yml
+  ```
+</ParamField>
+
+These two flags are useful when a compositor or driver applies policies based on the device's USB IDs. Setting them to match a specific real device is one way to inherit that device's configured behaviour in the target application.
+
+---
+
+## Vendor/product ID matching
+
+The `ids:` format lets you target devices by their USB vendor and product IDs rather than by name. This is more robust across kernel reboots and device reconnects than path-based matching.
+
+```bash
+# Match a device with vendor 0x3f0 AND product 0x24
+xremap --device "ids:0x3f0:0x24" config.yml
+```
+
+You can also match on only one half of the pair by passing `0` for the other:
+
+| Pattern | Matches |
+|---------|---------|
+| `ids:0x3f0:0x24` | Vendor `0x3f0` **and** product `0x24` |
+| `ids:0x3f0:0` | Any product from vendor `0x3f0` |
+| `ids:0:0x24` | Product `0x24` from any vendor |
+
+The same `ids:` syntax also works inside your config file's `device.only` / `device.not` rules.
+
+---
+
+## Practical examples
+
+### Select a specific keyboard by name
+
+```bash
+xremap --device "SteelSeries Apex Pro" config.yml
+```
+
+### Select a device by path
+
+```bash
+xremap --device /dev/input/event4 config.yml
+```
+
+### Exclude the built-in keyboard, grab everything else
+
+```bash
+xremap --ignore "AT Translated Set 2 keyboard" config.yml
+```
+
+### Select by vendor ID (all products from that vendor)
+
+```bash
+xremap --device "ids:0x04d9:0" config.yml
+```
+
+### Grab keyboards and mouse buttons, exclude a trackpad
+
+```bash
+xremap --mouse --ignore "SynPS/2 Synaptics TouchPad" config.yml
+```
+
+### Inspect devices before writing rules
+
+```bash
+# Quick list
+xremap --list-devices
+
+# Full details including IDs
+xremap --device-details
+```

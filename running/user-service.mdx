@@ -1,0 +1,119 @@
+---
+title: "Run xremap as a systemd User Service"
+sidebarTitle: "User Service"
+description: "Set up xremap as a systemd user service so it starts automatically on login and restarts on failure."
+---
+
+Running xremap as a systemd user service is the recommended way to have it start automatically every time you log in. The service runs as your normal user and restarts xremap if it ever crashes, with no manual intervention required. Before continuing, make sure you can already [run xremap without sudo](./without-sudo) — the user service is essentially an autostart wrapper around that configuration.
+
+## Pros and cons
+
+**Pros**
+- xremap starts automatically on login.
+- Automatically restarts if xremap crashes or exits unexpectedly.
+- Runs as your normal user, so launched programs inherit your environment.
+
+**Cons**
+- Programs launched from xremap key bindings run inside a service context, which may differ slightly from your interactive shell environment.
+- The same security considerations as running [without sudo](./without-sudo) apply (keylogging risk, remapping active when locked).
+
+---
+
+## Setup
+
+<Steps>
+
+<Step title="Place your config file">
+  Put your xremap configuration at the expected location:
+
+  ```bash
+  mkdir -p ~/.config/xremap
+  # Copy or create your config
+  cp config.yml ~/.config/xremap/config.yml
+  ```
+</Step>
+
+<Step title="Install the service file">
+  Copy the bundled example service file into the systemd user unit directory:
+
+  ```bash
+  cp example/xremap.service ~/.config/systemd/user/xremap.service
+  ```
+
+  <Warning>
+    Make sure the `xremap` binary path in `xremap.service` matches where xremap is installed on your system. Open the file and verify the `ExecStart` line before proceeding.
+  </Warning>
+
+  The service file looks like this:
+
+  ```ini
+  [Unit]
+  Description=Xremap
+  After=default.target
+
+  [Service]
+  ExecStart=/usr/bin/xremap --watch=device %h/.config/xremap/config.yml
+  Restart=always
+  StandardOutput=journal
+  StandardError=journal
+
+  MemoryHigh=8M
+  MemoryMax=16M
+  IPAddressDeny=any
+
+  [Install]
+  WantedBy=default.target
+  ```
+
+  `%h` expands to your home directory. The `--watch=device` flag tells xremap to automatically pick up newly connected input devices.
+</Step>
+
+<Step title="Start the service">
+  ```bash
+  systemctl --user start xremap.service
+  ```
+</Step>
+
+<Step title="Enable the service on login">
+  To start xremap automatically every time you log in, enable the service:
+
+  ```bash
+  systemctl --user enable xremap.service
+  ```
+
+  <Note>
+    On some desktop environments, enabling the service this way may cause xremap to start before the window manager is fully ready, breaking application-specific remapping. If that happens, use the autostart file instead:
+
+    ```bash
+    cp example/xremap.desktop ~/.config/autostart/xremap.desktop
+    ```
+
+    This relies on your desktop's XDG autostart support and delays xremap until the session is ready.
+  </Note>
+</Step>
+
+</Steps>
+
+---
+
+## Reload after changing the service file
+
+Whenever you edit `xremap.service`, reload the unit definitions and restart the service:
+
+```bash
+systemctl --user daemon-reload && systemctl --user restart xremap.service
+```
+
+---
+
+## View status and logs
+
+Check whether the service is running and inspect recent output:
+
+```bash
+# Show current status
+systemctl --user status xremap.service
+
+# Follow the live log stream
+journalctl -fu xremap.service
+```

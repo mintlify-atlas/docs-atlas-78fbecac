@@ -1,0 +1,77 @@
+---
+title: "Key Throttle: Prevent Rapid Re-presses in xremap"
+sidebarTitle: "Throttle"
+description: "Use xremap's throttle_ms operator to prevent accidental key re-presses or fix faulty keyboards that emit double key events."
+---
+
+The `throttle_ms` operator controls how quickly a key can be reused. After a key's first press-repeat-release cycle, all further events from that key are suppressed until the timeout expires. This is useful both for protecting against accidental double presses and for working around faulty keyboards that emit spurious duplicate events.
+
+<Warning>
+  Key throttle lives in the `experimental_map` configuration section. Experimental features may have **breaking changes in any version update** of xremap. Changes will be noted in `CHANGELOG.md`. Features available in `modmap` — such as `device`, `mode`, key-to-key mapping, multi-purpose key, and press/release — do **not** work inside `experimental_map`. Application-specific remapping via `application` and `window` works since **v0.15.5**.
+</Warning>
+
+Working since **v0.15.12**.
+
+## How It Works
+
+On the first press of a throttled key, the full press-repeat-release event cycle passes through normally. After the key is released, all subsequent events are **suppressed** until the `throttle_ms` timeout has elapsed.
+
+If the timeout expires while the key is still **physically held down**, the repeat and release events will still pass through. This ensures the key is always consistently released and never left stuck.
+
+## Syntax
+
+```yaml
+experimental_map:
+  - remap:
+      KEY: { throttle_ms: MILLISECONDS }
+```
+
+Set `MILLISECONDS` to a value appropriate for your use case:
+
+- **High value (e.g. 2000ms)**: protects against accidental double taps.
+- **Low value (e.g. 50ms)**: discards spurious duplicate events from a faulty keyboard.
+
+## Examples
+
+### Protect against accidental double tap
+
+If you have a tendency to accidentally press a key twice when you intended to press it once, a high timeout will block the second press from having any effect:
+
+```yaml
+experimental_map:
+  - remap:
+      kpminus: { throttle_ms: 2000 }
+```
+
+With this configuration, `kpminus` can only be activated once every 2 seconds.
+
+### Fix faulty keyboard double events
+
+Some keyboards are faulty and physically send two press events when pressed once. A short timeout discards the duplicate:
+
+```yaml
+experimental_map:
+  - remap:
+      kpminus: { throttle_ms: 50 }
+```
+
+<Warning>
+  This is only a partial fix for faulty keyboard double events. Although the second tap is suppressed, the key is released again quickly — which means the key **loses its repeat functionality**. A more complete solution, such as QMK's contact bounce handling, throttles press and release events together. Consider this a best-effort workaround for hardware issues.
+</Warning>
+
+## `experimental_map` Restrictions
+
+The following features from `modmap` are **not available** inside `experimental_map`:
+
+- `device` filtering
+- `mode` switching
+- Key-to-key mapping
+- Multi-purpose key (`held`/`alone`)
+- `press`/`release` event handling
+
+`application` and `window` context matching **do** work since v0.15.5.
+
+## References
+
+- [RxJS throttle definition](https://rxjs.dev/api/operators/throttle) — the "throttle" vs "debounce" distinction used in xremap
+- [QMK Contact Bounce / Contact Chatter](https://docs.qmk.fm/feature_debounce_type) — deeper background on hardware debounce

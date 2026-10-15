@@ -1,0 +1,169 @@
+---
+title: "Run xremap without sudo"
+sidebarTitle: "Without sudo"
+description: "Configure evdev and uinput permissions to run xremap without sudo. Includes NixOS setup and alternative udev rule configurations."
+---
+
+Running xremap without `sudo` means any programs launched through your key bindings run as your normal user, not as root. To make this work you need to grant your user two permissions: read access to input devices (via the `input` group) and write access to the `uinput` device (via a udev rule). Once those are in place, start xremap like any other command:
+
+```bash
+xremap config.yml
+```
+
+Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop it — all key bindings revert immediately.
+
+## Pros and cons
+
+**Pros**
+- Programs launched by xremap run as your normal user.
+- No root process is kept running in the background.
+
+**Cons**
+- Granting `evdev` access opens your account to keylogging — any process running as your user can read raw keystrokes. Evaluate this risk before proceeding.
+- Remapping stays active even when the screen is locked.
+- Remapping is also active for other users logged in at the same time; if they trigger key bindings that launch programs, those programs will run as your user.
+
+---
+
+## Set up permissions
+
+### Input permission
+
+Add your user to the `input` group so xremap can read from keyboard and pointer devices:
+
+```bash
+sudo gpasswd -a YOUR_USER input
+```
+
+Replace `YOUR_USER` with your actual username (e.g. `alice`).
+
+### Output (uinput) permission
+
+Create a udev rule that grants members of the `input` group write access to `/dev/uinput`:
+
+```bash
+echo 'KERNEL=="uinput", GROUP="input", TAG+="uaccess", MODE:="0660", OPTIONS+="static_node=uinput"' \
+  | sudo tee /etc/udev/rules.d/99-input.rules
+```
+
+<Note>
+  If this rule does not work for your distribution, see the [alternative udev rules](#alternatives-for-uinput-module-permissions) at the bottom of this page.
+</Note>
+
+### uinput kernel module
+
+Check whether the `uinput` module is already loaded:
+
+```bash
+ls -l /dev/uinput
+```
+
+If the device node is missing, configure it to load automatically at boot:
+
+```bash
+echo uinput | sudo tee /etc/modules-load.d/uinput.conf
+```
+
+### Apply without rebooting
+
+A reboot is the most reliable way to make all changes take effect. However, you can try applying them immediately:
+
+<Steps>
+
+<Step title="Load the uinput module">
+  ```bash
+  sudo modprobe uinput
+  ```
+</Step>
+
+<Step title="Reload udev rules">
+  ```bash
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+</Step>
+
+<Step title="Refresh your group membership">
+  Open a new shell where your updated group memberships are active:
+
+  ```bash
+  su $USER
+  ```
+</Step>
+
+</Steps>
+
+---
+
+## NixOS setup
+
+On NixOS, add the following to your `configuration.nix`:
+
+```nix
+hardware.uinput.enable = true;
+boot.kernelModules = [ "uinput" ];
+```
+
+Then add the udev rule via `services.udev.extraRules`:
+
+```nix
+services.udev.extraRules = ''
+  KERNEL=="uinput", GROUP="input", TAG+="uaccess"
+  '';
+```
+
+The rule is written to `/etc/udev/rules.d/99-local.rules`. Rebuild and switch:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+<Note>
+  You may also need to reboot for the module and group changes to fully take effect. See the [NixOS documentation](https://search.nixos.org/options?channel=24.11&show=services.udev.extraRules&from=0&size=50&sort=relevance&type=packages&query=services.udev) for more details on `services.udev.extraRules`.
+</Note>
+
+---
+
+## Other platforms
+
+On distributions that do not ship an `input` group by default, create it first and add a device-level rule:
+
+```bash
+echo 'KERNEL=="event*", NAME="input/%k", MODE="660", GROUP="input"' \
+  | sudo tee /etc/udev/rules.d/input.rules
+```
+
+<Warning>
+  With this rule, `--watch` may fail to detect newly connected devices due to a brief permission race. Using `sudo` may be more practical on such platforms.
+</Warning>
+
+---
+
+## Alternatives for uinput module permissions
+
+If the primary udev rule above does not work on your system, try one of these alternatives. A reboot is required to confirm whether a rule works.
+
+**Option A — tag only (no MODE):**
+
+```bash
+echo 'KERNEL=="uinput", GROUP="input", TAG+="uaccess"' \
+  | sudo tee /etc/udev/rules.d/99-input.rules
+```
+
+**Option B — setfacl via RUN:**
+
+```bash
+echo 'KERNEL=="uinput", RUN+="/usr/bin/setfacl -m g:input:rw /dev/%k"' \
+  | sudo tee /etc/udev/rules.d/99-input.rules
+```
+
+---
+
+## Application-specific remapping
+
+### GNOME Wayland
+
+Install the [xremap GNOME Shell extension](https://extensions.gnome.org/extension/5060/xremap/) from the GNOME Extensions website, then toggle it **OFF → ON** to activate it. No further steps are needed when running without sudo.
+
+### Other desktop environments
+
+All other supported desktops (X11, KDE Wayland, Sway, Niri, COSMIC) work without additional configuration once the permissions above are in place.

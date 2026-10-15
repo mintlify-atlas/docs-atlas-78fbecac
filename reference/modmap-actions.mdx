@@ -1,0 +1,150 @@
+---
+title: "modmap Actions Reference"
+sidebarTitle: "modmap Actions"
+description: "The modmap section has different actions than keymap: key-to-key remaps, multi-purpose keys, and press/release triggers with keymap actions."
+---
+
+The `modmap` section handles low-level key-to-key remapping and runs before `keymap`. Its actions are distinct from those available in `keymap` — there is no `null` action, and the way keys are pressed and released differs by action type. Understanding the three `modmap` action types and their differences will help you build the right remap for each use case.
+
+## Overview of modmap Action Types
+
+| Action type | How to write it | Use case |
+|---|---|---|
+| Key-to-key remap | `f11: A` or `f11: [A, B]` | Simple substitution |
+| Multi-purpose key | `held: X`, `alone: Y` | Different key when tapped vs held |
+| Press/release key | `press: ...`, `release: ...` | Run keymap actions on press or release events |
+
+---
+
+## Key-to-Key Remap
+
+The simplest `modmap` action maps one key (or one key press) to another key or list of keys. The mapped key(s) are **pressed when the trigger is pressed** and **released when the trigger is released**, preserving normal hold-and-repeat behavior.
+
+```yaml
+modmap:
+  - remap:
+      f11: A          # Single key — A repeats when f11 is held
+      f12: [A, B, C]  # Multiple keys — all pressed in order, all released in order
+```
+
+When multiple keys are specified in a list, they are pressed in the given order and released in the same order. This allows emitting chord-like combinations:
+
+```yaml
+modmap:
+  - remap:
+      f10: [Ctrl_L, Z]  # Press Ctrl_L then Z; release Ctrl_L then Z
+```
+
+<Note>
+The output of a key-to-key remap in `modmap` passes through `keymap` for further remapping. So if you remap `CapsLock → Ctrl_L` in modmap, any `keymap` entry using `Ctrl` will now also match the physical CapsLock key.
+</Note>
+
+### Disabling a Key
+
+Map a key to an empty list to disable it entirely:
+
+```yaml
+modmap:
+  - remap:
+      F9: []    # F9 now does nothing
+```
+
+---
+
+## Multi-Purpose Key
+
+The multi-purpose key dispatches different actions depending on whether the key is **held** (pressed with another key) or pressed **alone**. This is the `modmap` way to implement tap-hold behavior.
+
+<ParamField path="held" type="Key | Key[]" required>
+  The key or keys to emit when the trigger is held down (pressed alongside another key or held past a timeout). Modifiers in the action are pressed first and released last, making it safe to use key combos here.
+</ParamField>
+
+<ParamField path="alone" type="Key | Key[]" required>
+  The key or keys to emit when the trigger is pressed and released without any other key being pressed.
+</ParamField>
+
+<ParamField path="hold_threshold_millis" type="Number">
+  Milliseconds after the trigger is pressed before switching from tap-preferred to hold-preferred state. Defaults to `0`, meaning hold-preferred from the start.
+</ParamField>
+
+<ParamField path="alone_timeout_millis" type="Number">
+  Milliseconds after which the key is committed to the held action even if released alone. Defaults to `1000`.
+</ParamField>
+
+<ParamField path="free_hold" type="Boolean">
+  When `true`, the held state is only triggered when another key interrupts the press — there is no timeout. Logically equivalent to an infinite `alone_timeout_millis`. Defaults to `false`.
+</ParamField>
+
+<ParamField path="interruptable" type="Object | Boolean">
+  Controls which keys can interrupt the alone press. Accepts `true` (all keys), `false` (no interruption), `{ not: [keys] }` (all except listed), or `{ only: [keys] }` (only listed keys). The default is `{ not: [XRIGHTCURSOR, XLEFTCURSOR, XDOWNCURSOR, XUPCURSOR] }`.
+</ParamField>
+
+```yaml
+modmap:
+  - remap:
+      CAPSLOCK:
+        held: Ctrl_L    # Acts as Ctrl when held
+        alone: Esc      # Acts as Esc when tapped
+        alone_timeout_millis: 200
+```
+
+### Modifier Ordering in Multi-Purpose Keys
+
+When an action contains multiple keys, modifiers among them are pressed **first** and released **last**. This is unique to the multi-purpose key and allows the `held` or `alone` action to emit a full key combo:
+
+```yaml
+modmap:
+  - remap:
+      CAPSLOCK:
+        held: [SHIFT_L, A]    # Emits Shift+A — Shift is pressed first, released last
+        alone: CAPSLOCK
+```
+
+For a detailed explanation of tap-preferred vs hold-preferred timing, and all multi-purpose key options, see the [Multi-Purpose Key](/reference/multipurpose-key) reference page.
+
+---
+
+## Press/Release Key
+
+The press/release key action allows `modmap` entries to trigger [keymap-style actions](/reference/keymap-actions) — such as `launch`, `set_mode`, or `sleep` — on specific key events (press, repeat, or release).
+
+<ParamField path="press" type="Action | Action[] | null">
+  Action(s) to perform when the trigger key is pressed. The action is pressed **and released** immediately when the trigger is pressed. Defaults to no action.
+</ParamField>
+
+<ParamField path="repeat" type="Action | Action[] | null">
+  Action(s) to perform on each repeat event while the trigger is held. Defaults to no action.
+</ParamField>
+
+<ParamField path="release" type="Action | Action[] | null">
+  Action(s) to perform when the trigger key is released. The action is pressed and released at that moment. Defaults to no action.
+</ParamField>
+
+<ParamField path="skip_key_event" type="Boolean">
+  When `true`, the trigger key's own event is suppressed and not passed to `keymap`. Defaults to `false`.
+</ParamField>
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        skip_key_event: false       # CapsLock still goes through keymap
+        press: { launch: ["notify-send", "CapsLock pressed"] }
+        repeat: null                # No action on repeat
+        release: { set_mode: default }
+```
+
+### Key Differences from Key-to-Key Remaps
+
+Press/release key actions behave differently from the other two `modmap` action types in two important ways:
+
+1. **Press-action is pressed and released immediately** — the action fires as a complete press+release pair when triggered, rather than being held until the trigger is released.
+2. **Actions bypass `keymap`** — unlike key-to-key remaps (which pass through `keymap`), actions emitted by press/release keys are sent directly without further remapping.
+
+<Warning>
+The trigger key itself still goes through `keymap` (unless `skip_key_event: true`). Only the press/release actions bypass keymap — not the trigger key.
+</Warning>
+
+The `set_mode`, `escape_next_key`, and `mark_set` actions take effect **before** the trigger key is looked up in `keymap`. This ensures mode switches are visible to the keymap lookup for that same event.
+
+For complete examples and details, see the [Press/Release Key](/reference/press-release-key) reference page.

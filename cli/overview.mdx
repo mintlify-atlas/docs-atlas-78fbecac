@@ -1,0 +1,325 @@
+---
+title: "xremap CLI Reference"
+sidebarTitle: "Overview"
+description: "Complete reference for the xremap command-line interface. All options, flags, and arguments for the xremap binary."
+---
+
+The `xremap` binary is the single entry point for running, configuring, and inspecting xremap. You pass one or more YAML config files as positional arguments, and control every aspect of device selection, desktop integration, and output device identity through flags. This page documents every option accepted by the current release.
+
+## Basic usage
+
+```bash
+xremap [OPTIONS] [CONFIGS]...
+```
+
+The `CONFIGS` argument accepts one or more paths to configuration files. When multiple files are given, the `modmap`, `keymap`, and `virtual_modifiers` sections from each subsequent file are merged into the first file's configuration. This lets you split a large config into composable pieces without duplicating shared settings.
+
+```bash
+# Single config
+xremap config.yml
+
+# Multiple configs — base.yml is the primary; extras.yml is merged in
+xremap base.yml extras.yml
+```
+
+<Note>
+  CONFIGS is required unless you pass one of the info-only flags (`--completions`, `--list-desktops`, `--list-devices`, `--device-details`, `--list-windows`, or `--bridge`), which do not need a config file.
+</Note>
+
+---
+
+## Full --help output
+
+The canonical reference for all flags is available at any time by running `xremap --help`:
+
+```
+Usage: xremap [OPTIONS] [CONFIGS]...
+
+Arguments:
+  [CONFIGS]...
+          Config file(s)
+
+          When more than one file is given, then will modmap, keymap and virtual_modifiers
+          from the subsequent files be merged into the first configuration file.
+
+Options:
+      --device <DEVICE>
+          Limit input devices to the given names or paths. Default is all keyboards
+
+      --ignore <IGNORE>
+          Ignore input devices with the given names or paths
+
+      --mouse
+          Listen to mouse devices. Default is false.
+          Trackpads, tablets and other absolute devices are not supported.
+
+      --watch[=<WATCH>...]
+          Watch for new devices or changing configuration files.
+          Default is not watching for either.
+          Examples
+          - xremap --watch config.yml               # watch devices
+          - xremap --watch=config config.yml        # watch configuration files
+          - xremap --watch=config,device config.yml # watch both
+
+          Possible values:
+          - device: add new devices automatically
+          - config: reload the config automatically
+
+      --output-device-name <OUTPUT_DEVICE_NAME>
+          Choose the name of the created output device. Default is 'xremap' or 'xremap pid=xx'
+
+      --vendor <VENDOR>
+          Choose the vendor value of the created output device.
+          Must be given in hexadecimal with or without a prefix '0x'.
+          Default is: 0x1234
+
+      --product <PRODUCT>
+          Choose the product value of the created output device.
+          Must be given in hexadecimal with or without a prefix '0x'.
+          Default is: 0x5678
+
+      --desktop <DESKTOP>
+          Choose the desktop or window manager to connect to.
+          Default is: auto select
+
+          [possible values: gnome, x11, hypr, kde, wlroots, niri, cosmic, pantheon, socket, auto, none]
+
+      --list-desktops
+          List the desktops xremap supports in the current variant.
+
+      --list-devices
+          List info about devices
+
+      --device-details
+          Show device details
+
+      --list-windows
+          List open windows. Use this to get app_class and title.
+          Since v0.15.5. Not supported for GNOME Wayland or KDE Wayland.
+
+      --validate-config
+          Validate the config file(s) and exit without starting xremap.
+          The exit code is non-zero when the config is invalid.
+
+      --no-window-logging
+          Suppress logging of window title and application changes.
+          Default is false. Since v0.14.10.
+
+      --allow-launch <ALLOW_LAUNCH>
+          Allow remappings to execute programs. Default is ambiguous. Since v0.15.1
+
+          [possible values: true, false]
+
+      --bridge
+          Open a bridge from the desktop environment to the xremap system service.
+          Since v0.15.1
+
+      --completions <SHELL>
+          Generate shell completions
+
+          You can use them by storing in your shells completion file or by running
+          - in bash: eval "$(xremap --completions bash)"
+          - in fish: xremap --completions fish | source
+
+          [possible values: bash, elvish, fish, powershell, zsh]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+```
+
+---
+
+## Options reference
+
+### Input device selection
+
+<ParamField path="--device" type="DEVICE" >
+  Limit captured input to the given device(s). Accepts a full path (`/dev/input/event0`), a filename (`event0`), a device name, a substring of a name, or a vendor/product ID pair (`ids:0x3f0:0x24`). Pass multiple values comma-separated or by repeating the flag. When omitted, xremap uses all keyboard devices it finds.
+
+  ```bash
+  xremap --device "My Keyboard" config.yml
+  xremap --device "first device,second device" config.yml
+  xremap --device "first device" --device "second device" config.yml
+  ```
+</ParamField>
+
+<ParamField path="--ignore" type="IGNORE">
+  Exclude the specified device(s) from capture. Accepts the same value formats as `--device`. Useful when you want to grab all keyboards except one specific peripheral.
+
+  ```bash
+  xremap --ignore "Wireless Mouse" config.yml
+  ```
+</ParamField>
+
+<ParamField path="--mouse" type="boolean" default="false">
+  Also listen to mouse devices. By default xremap only grabs keyboard-type devices. Note that trackpads, tablets, and other absolute-positioning devices are **not** supported even with this flag.
+</ParamField>
+
+---
+
+### Watch mode
+
+<ParamField path="--watch[=<WATCH>...]" type="device | config">
+  Watch for new devices and/or config file changes. When given without a value (`--watch`), defaults to watching for new devices. Accepts `device`, `config`, or both as a comma-separated list.
+
+  | Value | Behaviour |
+  |-------|-----------|
+  | *(none)* | Watch for new devices |
+  | `device` | Watch for new devices |
+  | `config` | Reload config files automatically when they change |
+  | `config,device` | Do both |
+
+  ```bash
+  xremap --watch config.yml               # watch devices
+  xremap --watch=device config.yml        # same as above
+  xremap --watch=config config.yml        # watch config files
+  xremap --watch=config,device config.yml # watch both
+  ```
+</ParamField>
+
+---
+
+### Output device identity
+
+<ParamField path="--output-device-name" type="NAME" default="xremap or xremap pid=xx">
+  Sets the name reported by the virtual `uinput` output device. Useful when other tools or config rules need to identify xremap's output by name.
+</ParamField>
+
+<ParamField path="--vendor" type="VENDOR" default="0x1234">
+  Vendor ID for the virtual output device, in hexadecimal. Accepts values with or without the `0x` prefix (e.g. `1234` or `0x1234`).
+</ParamField>
+
+<ParamField path="--product" type="PRODUCT" default="0x5678">
+  Product ID for the virtual output device, in hexadecimal. Accepts values with or without the `0x` prefix.
+</ParamField>
+
+---
+
+### Desktop / window manager integration
+
+<ParamField path="--desktop" type="DESKTOP">
+  Select which desktop or window manager integration to use for application-aware remapping. Defaults to `auto`, which detects the environment automatically.
+
+  | Value | Description |
+  |-------|-------------|
+  | `gnome` | GNOME Shell (X11 or Wayland) |
+  | `x11` | Generic X11 |
+  | `hypr` | Hyprland (Wayland) |
+  | `kde` | KDE Plasma (X11 or Wayland) |
+  | `wlroots` | wlroots-based compositors |
+  | `niri` | Niri compositor |
+  | `cosmic` | COSMIC desktop |
+  | `pantheon` | Pantheon (elementary OS) |
+  | `socket` | Unix socket bridge |
+  | `auto` | Auto-detect *(default)* |
+  | `none` | Disable window tracking |
+</ParamField>
+
+<ParamField path="--list-desktops" type="flag">
+  Print the desktops and window managers supported in the currently installed variant of xremap, then exit.
+</ParamField>
+
+---
+
+### Informational flags
+
+<ParamField path="--list-devices" type="flag">
+  Print a summary of all available input devices and their paths, then exit. Use this to find the right value for `--device` or `--ignore`.
+</ParamField>
+
+<ParamField path="--device-details" type="flag">
+  Print detailed information about all input devices (capabilities, IDs, etc.), then exit.
+</ParamField>
+
+<ParamField path="--list-windows" type="flag">
+  List all open windows with their `app_class` and title, then exit. Added in **v0.15.5**.
+
+  <Warning>
+    Not supported on GNOME Wayland or KDE Wayland. On those compositors use `busctl` (GNOME) or trigger a mapping to see active window output in the log (KDE).
+  </Warning>
+</ParamField>
+
+---
+
+### Config validation and logging
+
+<ParamField path="--validate-config" type="flag">
+  Load and validate the config file(s) without starting xremap or touching any devices. Exits 0 and prints `Config is valid` on success; exits non-zero and prints the error on failure. Requires no special device permissions, making it ideal for CI and pre-commit hooks.
+</ParamField>
+
+<ParamField path="--no-window-logging" type="boolean" default="false">
+  Suppress log lines that report window title and application changes. Added in **v0.14.10**.
+</ParamField>
+
+---
+
+### Launch control and bridge
+
+<ParamField path="--allow-launch" type="true | false">
+  Controls whether remapping rules that include a `launch` action are permitted to execute programs. The current default is ambiguous (the value may differ between normal start and bridge mode); explicitly set `true` or `false` if your config uses `launch`. Added in **v0.15.1**.
+</ParamField>
+
+<ParamField path="--bridge" type="flag">
+  Open the bridge from a desktop environment process to an xremap system service running as root or a dedicated user. This is the recommended way to enable application-specific remapping when xremap runs as a system service. Added in **v0.15.1**.
+</ParamField>
+
+---
+
+### Shell completions
+
+<ParamField path="--completions" type="SHELL">
+  Generate a completion script for the given shell and print it to stdout. Supported shells: `bash`, `elvish`, `fish`, `powershell`, `zsh`. See [Shell Completions](/cli/shell-completions) for per-shell install instructions.
+
+  ```bash
+  # Quick usage in bash
+  eval "$(xremap --completions bash)"
+
+  # Quick usage in fish
+  xremap --completions fish | source
+  ```
+</ParamField>
+
+---
+
+### Standard flags
+
+<ParamField path="-h, --help" type="flag">
+  Print a help summary (`-h`) or the full help text (`--help`), then exit.
+</ParamField>
+
+<ParamField path="-V, --version" type="flag">
+  Print the installed xremap version, then exit.
+</ParamField>
+
+---
+
+## Multiple config files example
+
+Splitting your config into a base file and overrides can make large setups easier to maintain. xremap merges `modmap`, `keymap`, and `virtual_modifiers` from each subsequent file into the first:
+
+```bash
+# Load a shared base config and a machine-specific overlay
+xremap ~/.config/xremap/base.yml ~/.config/xremap/work-laptop.yml
+```
+
+```yaml
+# base.yml — shared remappings
+modmap:
+  - remap:
+      CapsLock: Esc
+
+keymap:
+  - remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+```
+
+```yaml
+# work-laptop.yml — extra bindings merged into base.yml
+keymap:
+  - remap:
+      Super-L: { launch: ["loginctl", "lock-session"] }
+```

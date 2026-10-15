@@ -1,0 +1,87 @@
+---
+title: "Running xremap on FreeBSD"
+sidebarTitle: "FreeBSD"
+description: "Install and configure xremap on FreeBSD. Covers permission setup, persistent permissions at boot, and known limitations including keyboard layout and file watching."
+---
+
+xremap runs on FreeBSD with X11 desktop environments. The setup process is similar to Linux but requires a few extra steps to configure device permissions and work around some platform-specific limitations. This page walks through a complete installation and highlights the known rough edges.
+
+## Installation
+
+<Steps>
+  ### Install Rust
+
+  FreeBSD's package manager ships a Rust package that works out of the box:
+
+  ```bash
+  pkg install rust
+  ```
+
+  If this does not work, fall back to the [official rustup installer](https://sh.rustup.rs).
+
+  ### Compile xremap
+
+  Compile and install xremap with X11 desktop support:
+
+  ```bash
+  cargo install xremap --features x11
+  ```
+
+  ### Verify the installation
+
+  ```bash
+  xremap --version
+  ```
+
+  If the command is not found, make sure `~/.cargo/bin` is in your `$PATH`.
+</Steps>
+
+## Permissions
+
+xremap needs read access to `/dev/input` devices and write access to `/dev/uinput` to create a virtual keyboard. These permissions are not set by default.
+
+Run the following commands once (assuming your user belongs to the `wheel` group):
+
+```bash
+chmod -R g+rwx /dev/input
+chmod g+rwx /dev/uinput
+```
+
+These permissions are reset on every reboot and also when new input devices are connected. You will need to re-run the commands after plugging in a new keyboard or mouse.
+
+### Persistent permissions at boot
+
+To restore the permissions automatically every time the system starts, add the commands to the system-wide crontab:
+
+```bash
+echo '@reboot root chmod -R g+rwx /dev/input' >> /etc/crontab
+echo '@reboot root chmod g+rwx /dev/uinput' >> /etc/crontab
+```
+
+The `@reboot` directive runs the commands once at boot time as `root`. Your user will then have access to the devices without any manual intervention.
+
+## Known limitations
+
+### Keyboard layout resets when xremap starts
+
+When xremap grabs the input devices, FreeBSD can reset the active keyboard layout back to the system default. This means any custom layout you had active (for example, British English `gb`) will be lost.
+
+**Mitigation:** After starting xremap, re-apply your preferred layout:
+
+```bash
+setxkbmap gb
+```
+
+Replace `gb` with your actual layout code. You can automate this by running the command in the same script or shell session that launches xremap.
+
+For more background on this FreeBSD behaviour, see the [FreeBSD forums thread](https://forums.freebsd.org/threads/keyboard-layout-keeps-getting-messed-up.95081/).
+
+### Config and device watching not supported
+
+The `--watch` flag (watching for new keyboards/mice) and automatic config file reloading are both unavailable on FreeBSD. The cause is that the underlying `nix` Rust crate does not implement `Inotify` for FreeBSD. An alternative cross-platform file-watching crate ([notify](https://crates.io/crates/notify)) exists and could be used in a future implementation.
+
+For now, restart xremap manually after plugging in new devices or editing your config file.
+
+### LED events not emitted
+
+xremap does not emit LED events (such as the CapsLock or NumLock indicator light) on FreeBSD. This is a limitation of the `evdev` Rust crate, which does not support `with_led` for `VirtualDevice` on this platform. In practice this has little impact — CapsLock and NumLock continue to function normally; only the indicator LEDs are affected.

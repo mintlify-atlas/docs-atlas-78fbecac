@@ -1,0 +1,193 @@
+---
+title: "Multi-Purpose Key (Tap-Hold) Configuration"
+sidebarTitle: "Multi-Purpose Key"
+description: "Configure xremap multi-purpose keys that emit different actions when tapped versus held. Covers tap/hold thresholds, free_hold, and interruptable options."
+---
+
+A multi-purpose key produces different output depending on how it is used: one action when tapped quickly alone, and a different action when held down or used in combination with another key. This is the `modmap` feature that enables patterns like "CapsLock is Ctrl when held, Esc when tapped" or "Space is Shift when held, Space when tapped." Understanding the timing model is key to getting the behavior you want.
+
+## Configuration Fields
+
+<ParamField path="held" type="Key | Key[]" required>
+  The key or keys to emit when the trigger is determined to be in the held state (interrupted by another key press, or held past the timeout). Modifiers in this list are pressed first and released last, so key combos work correctly here.
+</ParamField>
+
+<ParamField path="alone" type="Key | Key[]" required>
+  The key or keys to emit when the trigger is pressed and released alone (without interruption within the timeout window).
+</ParamField>
+
+<ParamField path="hold_threshold_millis" type="Number">
+  Milliseconds after the trigger press before switching from **tap-preferred** to **hold-preferred** state. Defaults to `0`, meaning the key is hold-preferred from the moment it is pressed.
+</ParamField>
+
+<ParamField path="alone_timeout_millis" type="Number">
+  Milliseconds after which the held action is committed, even if the key is released alone (no other key was pressed). Defaults to `1000`.
+</ParamField>
+
+<ParamField path="free_hold" type="Boolean">
+  When `true`, there is no timeout — the held state is triggered **only** when another key is pressed while the trigger is held. If the trigger is released without interruption, the alone action fires regardless of how long it was held. This is logically equivalent to an infinite `alone_timeout_millis`. Defaults to `false`.
+</ParamField>
+
+<ParamField path="interruptable" type="Object | Boolean">
+  Controls which key events can interrupt the alone press and force the held state. Options:
+  - `true` — all keys (including scroll and cursor events) can interrupt
+  - `false` — nothing can interrupt; the alone action always fires if no timeout
+  - `{ not: [key, ...] }` — all keys except those listed can interrupt
+  - `{ only: key }` or `{ only: [key, ...] }` — only the listed key(s) can interrupt
+
+  Default: `{ not: [XRIGHTCURSOR, XLEFTCURSOR, XDOWNCURSOR, XUPCURSOR] }` — mouse movement is ignored.
+</ParamField>
+
+---
+
+## Tap-Preferred vs Hold-Preferred States
+
+The multi-purpose key progresses through three timing states after it is pressed:
+
+| Time since press | State | On interruption | On release alone |
+|---|---|---|---|
+| `0` → `hold_threshold_millis` | **Tap-preferred** | Emit tap-action immediately, then the interrupting key | Emit tap-action |
+| `hold_threshold_millis` → `alone_timeout_millis` | **Hold-preferred** | Press held-action before interrupting key; release when trigger released | Emit tap-action |
+| `alone_timeout_millis` → `∞` | **Always-hold** | Hold-action was already pressed at timeout | Hold-action was already pressed |
+
+With the default `hold_threshold_millis: 0`, the key is hold-preferred from the start — pressing any other key while it is held immediately triggers the held action. Increasing `hold_threshold_millis` creates a window at the start where typing quickly won't accidentally trigger the hold action.
+
+<Note>
+The press event of the trigger key itself is never emitted. Repeat events from the trigger key are suppressed while waiting for a decision.
+</Note>
+
+---
+
+## Examples
+
+### CapsLock: Ctrl when held, Esc when tapped
+
+The simplest and most common multi-purpose key. Hold-preferred from the start (default `hold_threshold_millis: 0`):
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        held: Ctrl_L
+        alone: Esc
+        alone_timeout_millis: 200
+```
+
+### Space: Shift when held, Space when tapped (free_hold)
+
+Use `free_hold: true` so that holding Space for a long time doesn't accidentally activate Shift — it only activates when another key is pressed during the hold:
+
+```yaml
+modmap:
+  - remap:
+      Space:
+        held: Shift_L
+        alone: Space
+        free_hold: true
+```
+
+<Note>
+With `free_hold: true`, Space can no longer be used for keyboard repeat (holding Space to type multiple spaces). This is the intended trade-off.
+</Note>
+
+### Space: Shift when held with hold_threshold for fast typing
+
+Without a `hold_threshold_millis`, fast typing like `a`, `space`, `l` may emit `aL` because `space` is still held when `l` is pressed. Adding a threshold fixes this:
+
+```yaml
+modmap:
+  - remap:
+      Space:
+        held: Shift_L
+        alone: Space
+        hold_threshold_millis: 200
+        free_hold: true
+```
+
+Now Space only acts as Shift if it has been held for at least 200 ms before another key is pressed.
+
+### Home row modifier: tap-preferred
+
+This mirrors ZMK's tap-preferred hold-tap and QMK's default tap-hold behavior. The tap action fires immediately on interruption during the threshold window:
+
+```yaml
+modmap:
+  - remap:
+      A:
+        tap: A
+        hold: Shift_L
+        hold_threshold_millis: 200
+        tap_timeout_millis: 200
+```
+
+<Note>
+`tap` is a synonym for `alone`, and `tap_timeout_millis` is a synonym for `alone_timeout_millis`. Working since v0.14.15.
+</Note>
+
+### Hold-preferred (hold-on-other-key-press)
+
+The key is hold-preferred immediately, mirroring ZMK's hold-preferred and QMK's "hold on other key press":
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        tap: Esc
+        hold: Shift_L
+        hold_threshold_millis: 0   # Default; can be omitted
+        tap_timeout_millis: 200
+```
+
+### Ctrl_L: Ctrl when held, Backspace when tapped, ignoring mouse movement
+
+```yaml
+modmap:
+  - remap:
+      Ctrl_L:
+        held: Ctrl_L
+        alone: Backspace
+        interruptable:
+          not: [XRIGHTCURSOR, XLEFTCURSOR, XDOWNCURSOR, XUPCURSOR]
+```
+
+This is actually the default `interruptable` behavior, so the `interruptable` field can be omitted here. It prevents accidental interruptions from mouse movement when using `--mouse`.
+
+### Alt_L: Alt when held, Space when tapped, interrupted only by Tab
+
+This lets you use `Alt-Tab` to switch windows without the tap-action firing on Alt-Tab:
+
+```yaml
+modmap:
+  - remap:
+      Alt_L:
+        held: Alt_L
+        alone: Space
+        alone_timeout_millis: 200
+        interruptable:
+          only: Tab
+```
+
+With `only: Tab`, any other key pressed while Alt is held will not interrupt the alone state — those keys are processed normally without canceling the multi-purpose key decision.
+
+---
+
+## Interruption Behavior
+
+"Interrupted" means another key press event is emitted from the `modmap` layer while the multi-purpose key is held. Note:
+
+- A key that is **squashed** (remapped to nothing) in `modmap` does not interrupt the multi-purpose key — the physical press happens, but nothing exits `modmap`.
+- **Repeat and release events** do not interrupt.
+- What happens in `keymap` does not affect interruption — multi-purpose keys are resolved before `keymap` processing.
+- Two multi-purpose keys can interrupt each other.
+
+---
+
+## Comparison to free_hold
+
+| Behavior | `alone_timeout_millis` | `free_hold: true` |
+|---|---|---|
+| Fires alone-action after X ms if held | Yes (after timeout) | Never (unless released) |
+| Fires held-action if interrupted | Yes | Yes |
+| Fires alone-action if released before timeout | Yes | Yes |
+| Allows key repeat while held | No | No |
+| Equivalent infinite timeout | No | Yes |

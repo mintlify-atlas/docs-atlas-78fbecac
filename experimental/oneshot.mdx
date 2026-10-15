@@ -1,0 +1,81 @@
+---
+title: "Oneshot (Sticky) Key Configuration in xremap"
+sidebarTitle: "Oneshot Key"
+description: "Configure oneshot (sticky) keys in xremap so a modifier stays active for the next keypress only. Uses the experimental_map section."
+---
+
+A oneshot key — sometimes called a sticky key — lets you press and release a modifier, then have it apply to only the very next key press. This is useful for accessibility workflows and ergonomic layouts where holding a modifier while pressing another key is uncomfortable or inconvenient.
+
+<Warning>
+  Oneshot keys live in the `experimental_map` configuration section. Experimental features may have **breaking changes in any version update** of xremap. Changes will be noted in `CHANGELOG.md`. Features available in `modmap` — such as `device`, `mode`, key-to-key mapping, multi-purpose key, and press/release — do **not** work inside `experimental_map`. Application-specific remapping via `application` and `window` works since **v0.15.5**.
+</Warning>
+
+Working since **v0.15.12**.
+
+## How It Works
+
+When you press and release a oneshot key, xremap holds the configured action and waits for the next key press:
+
+1. **Press and release** the oneshot key: the action is held. The next key press receives the action as if the oneshot key were physically held. The action is released immediately after that key is pressed.
+2. **Hold** the oneshot key while pressing the next key: the oneshot key behaves as a normal held modifier — the action is released when the oneshot key itself is released.
+3. **Re-press** the oneshot key before any other key: the pending action is **cancelled**.
+
+<Note>
+  Mouse movement and scroll do **not** interrupt an active oneshot action. However, a mouse **click** will interrupt it if xremap is started with the `--mouse` argument. Other modifier keys and other oneshot keys also interrupt an active oneshot action. This behavior may change in a future version based on user feedback.
+</Note>
+
+## Syntax
+
+```yaml
+experimental_map:
+  - remap:
+      KEY: { oneshot: ACTION }
+```
+
+The `ACTION` follows the same rules as other `experimental_map` actions — you can emit nothing, a single key, or a list of keys.
+
+## Possible Actions
+
+Oneshot actions follow the same rules as all `experimental_map` actions. You can emit a single key or a list of keys:
+
+```yaml
+experimental_map:
+  - remap:
+      f1:
+        oneshot: LeftShift          # Single key
+      f2:
+        oneshot: [LeftCtrl, LeftAlt] # Multiple keys all held until released
+```
+
+## Examples
+
+### Use Shift as a oneshot shift
+
+Make the left Shift key act as a oneshot modifier. Press and release Shift, then press any letter to capitalise it — without holding Shift down:
+
+```yaml
+experimental_map:
+  - remap:
+      s_l: { oneshot: s_l }
+```
+
+<Note>
+  `Shift` still works as a normal held modifier. If you hold it down while pressing another key, it behaves exactly as before. Only the tap-and-release gesture activates the oneshot behaviour.
+</Note>
+
+## `experimental_map` Restrictions
+
+The following features from `modmap` are **not available** inside `experimental_map`:
+
+- `device` filtering
+- `mode` switching
+- Key-to-key mapping
+- Multi-purpose key (`held`/`alone`)
+- `press`/`release` event handling
+
+`application` and `window` context matching **do** work since v0.15.5.
+
+## References
+
+- [QMK One-Shot Keys](https://docs.qmk.fm/one_shot_keys)
+- [keyd manual — One-shot example](https://man.archlinux.org/man/extra/keyd/keyd.1.en#Example_3)

@@ -1,0 +1,195 @@
+---
+title: "Extend xremap with Rust Plugins"
+sidebarTitle: "Scripting"
+description: "Use xremap as a Rust library to write custom key remapping logic via the Plugin trait. Covers installation, the on_key_event API, and running your project."
+---
+
+xremap's configuration file is intentionally declarative — it defines remapping rules but does not support scripting. If you need custom logic (rate-limiting keys, toggling state, chaining complex conditions), you can use xremap as a **Rust library** and implement its `Plugin` trait directly in your own program. This feature is supported since **v0.15.10**.
+
+<Warning>
+  The plugin API is **experimental from a stability standpoint**. xremap is primarily a standalone program, and library support is a secondary concern. Breaking changes to the Plugin trait or supporting types can appear in any xremap version, though they are avoided where possible.
+</Warning>
+
+## Safety advice
+
+Writing custom key event handlers makes it easy to accidentally lock up your keyboard or mouse. Before you start, take these precautions:
+
+- **Keep a USB keyboard handy.** If your keyboard becomes stuck, plug in a USB keyboard. xremap will not grab it unless started with `--watch`.
+- **Don't use `--mouse` initially.** Without `--mouse`, your mouse remains fully functional even if the keyboard gets stuck, letting you close xremap from a GUI.
+- **Implement a kill-key.** Map a specific key combination to shut xremap down. If xremap itself becomes stuck and doesn't respond, fall back to the USB keyboard method.
+
+## The Plugin trait
+
+Your Rust program implements the `Plugin` trait and passes it to `xremap_cli`. The core method you override is:
+
+```rust
+fn on_key_event(&mut self, key: KeyCode, value: KeyValue) -> Vec<(KeyCode, KeyValue)>
+```
+
+xremap calls this function for every key event (press, repeat, and release). You receive the `KeyCode` and `KeyValue`, and return a vector of zero or more `(KeyCode, KeyValue)` pairs that xremap should emit instead.
+
+### Passthrough (no-op)
+
+Return the original event unchanged. This is the default behavior if you do nothing special:
+
+```rust
+fn on_key_event(&mut self, key: KeyCode, value: KeyValue) -> Vec<(KeyCode, KeyValue)> {
+    return vec![(key, value)];
+}
+```
+
+### Disable a key
+
+Return an empty vector to suppress the event entirely. The following silences `KEY_KPMINUS`:
+
+```rust
+fn on_key_event(&mut self, key: KeyCode, value: KeyValue) -> Vec<(KeyCode, KeyValue)> {
+    if key == KeyCode::KEY_KPMINUS {
+        return vec![];
+    }
+    return vec![(key, value)];
+}
+```
+
+### Remap CapsLock to Ctrl
+
+Replace one key code with another by returning a different `KeyCode` while keeping the original `KeyValue`:
+
+```rust
+fn on_key_event(&mut self, key: KeyCode, value: KeyValue) -> Vec<(KeyCode, KeyValue)> {
+    if key == KeyCode::KEY_CAPSLOCK {
+        return vec![(KeyCode::KEY_LEFTCTRL, value)];
+    }
+    // Default: pass everything else through
+    return vec![(key, value)];
+}
+```
+
+## Getting started
+
+<Steps>
+  ### Install Rust
+
+  Follow the [official Rust installation instructions](https://rust-lang.org/tools/install/) to install `rustup` and the Rust toolchain.
+
+  ### Create a new Cargo project
+
+  ```bash
+  mkdir hello-xremap && cd hello-xremap
+  cargo init
+  ```
+
+  ### Add xremap as a dependency
+
+  For basic key remapping with no desktop integration:
+
+  ```bash
+  cargo add xremap
+  ```
+
+  To enable desktop-specific features (application-aware remapping), choose the feature matching your desktop environment:
+
+  ```bash
+  cargo add xremap --features kde
+  ```
+
+  Other available feature flags mirror the xremap installation options (e.g., `gnome`, `x11`, `hypr`). See the [API reference](https://docs.rs/xremap/latest/xremap/) for the full list.
+
+  ### Write your main.rs
+
+  Replace `src/main.rs` with the following skeleton. It logs a message when `KEY_A` is pressed and passes all other events through unchanged:
+
+  ```rust
+  use xremap::{KeyCode, KeyValue, Plugin, Result, xremap_cli};
+
+  fn main() -> Result<()> {
+      xremap_cli(CustomPlugin {})
+  }
+
+  pub struct CustomPlugin {}
+
+  impl Plugin for CustomPlugin {
+      fn on_key_event(&mut self, key: KeyCode, value: KeyValue) -> Vec<(KeyCode, KeyValue)> {
+          if key == KeyCode::KEY_A && value == KeyValue::Press {
+              println!("Key A pressed");
+          };
+
+          vec![(key, value)]
+      }
+  }
+  ```
+
+  ### Run your project
+
+  Pass your xremap config file as the first argument:
+
+  ```bash
+  cargo run config.yml
+  ```
+
+  All standard xremap command-line flags are supported. Use `--` to separate Cargo flags from xremap flags:
+
+  ```bash
+  cargo run -- --mouse config.yml
+  ```
+</Steps>
+
+## Example project: squash key
+
+The [squash key example](https://github.com/xremap/xremap/tree/master/example/scripting) in the xremap repository shows a real-world plugin. It prevents a key from firing more than once per second — any additional presses within the cooldown window are discarded. Below is the full source to illustrate what a stateful plugin looks like:
+
+```rust
+use std::time::{Duration, Instant};
+use xremap::{xremap_cli, KeyCode, KeyValue, Plugin, Result};
+
+const KEY_TO_SQUASH: KeyCode = KeyCode::KEY_KPMINUS;
+const SQUASH_TIME: Duration = Duration::from_secs(1);
+
+fn main() -> Result<()> {
+    let handler = CustomPlugin {
+        // Start non-squashed by setting the timer in the past
+        squash_until: Instant::now() - Duration::from_hours(1),
+    };
+
+    xremap_cli(handler)
+}
+
+pub struct CustomPlugin {
+    /// Squash the key until this instant is reached.
+    squash_until: Instant,
+}
+
+impl Plugin for CustomPlugin {
+    fn on_key_event(&mut self, key: KeyCode, value: KeyValue) -> Vec<(KeyCode, KeyValue)> {
+        if key == KEY_TO_SQUASH {
+            if value == KeyValue::Press || value == KeyValue::Repeat {
+                if Instant::now() < self.squash_until {
+                    // Still within the squash window — suppress the event
+                    return vec![];
+                } else {
+                    // Start a new squash period
+                    self.squash_until = Instant::now() + SQUASH_TIME
+                }
+            }
+        }
+
+        vec![(key, value)]
+    }
+}
+```
+
+## Version pinning
+
+Because the plugin API can have breaking changes in any release, it is good practice to pin the version you developed against:
+
+```bash
+cargo add xremap@0.15.10
+```
+
+The same command works to upgrade to a different version — just change the version number.
+
+## API reference
+
+The complete auto-generated API documentation, including all available `KeyCode` variants and `KeyValue` variants, is published at:
+
+[https://docs.rs/xremap/latest/xremap/](https://docs.rs/xremap/latest/xremap/)

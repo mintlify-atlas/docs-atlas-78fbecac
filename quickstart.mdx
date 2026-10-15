@@ -1,47 +1,254 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with xremap in Minutes"
+sidebarTitle: "Quickstart"
+description: "Write your first xremap config, remap CapsLock to Esc and Ctrl, and run xremap in five steps with real YAML examples."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+This guide walks you from zero to a working key remapping in five steps. By the end you will have remapped CapsLock to act as Escape when tapped and Control when held, verified the config is valid, and know how to find key names and application identifiers for more advanced rules.
 
 ## Prerequisites
 
-Before you begin, you must have:
+Before you begin, make sure you have:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+1. **xremap installed** — see the [Installation](/installation) guide.
+2. **The `uinput` kernel module loaded** — run `lsmod | grep uinput`. If it is not listed, run `sudo modprobe uinput`.
 
-## Get started
+## Step 1 — The simplest possible config
 
-<Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+Create a file called `config.yml` in any directory. The minimal config below remaps CapsLock to Escape using `modmap`, the layer that handles single-key substitution.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+```yaml
+modmap:
+  - remap:
+      CapsLock: Esc
+```
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+That is a complete, valid config. Save it and move on to the next step.
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+## Step 2 — Run xremap
+
+<CodeGroup>
+```bash With sudo
+sudo xremap config.yml
+```
+
+```bash Without sudo (udev rule configured)
+xremap config.yml
+```
+</CodeGroup>
+
+xremap will print a startup message listing the input devices it has attached to, then sit in the foreground intercepting and transforming key events. Press CapsLock — it now behaves as Escape in every application, on both X11 and Wayland.
+
+Press `Ctrl-C` to stop xremap and restore normal key behaviour.
+
+<Note>
+Which invocation you need depends on how you configured device permissions during installation. See [Running with or without sudo](/installation#running-with-or-without-sudo) in the Installation guide.
+</Note>
+
+## Step 3 — A more complete example: modmap + keymap together
+
+The real power of xremap comes from combining `modmap` and `keymap`. The example below turns CapsLock into a dual-purpose key: tap it for Escape, hold it to use as Control. It then adds Emacs-style navigation shortcuts that activate only when CapsLock/Control is held.
+
+```yaml
+modmap:
+  - name: CapsLock dual-role
+    remap:
+      CapsLock:
+        held: Ctrl_L      # Acts as left Control when held with another key
+        alone: Esc        # Acts as Escape when tapped alone
+        alone_timeout_millis: 500
+
+keymap:
+  - name: Emacs-style navigation
+    remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+      Ctrl-B: Left
+      Ctrl-F: Right
+      Ctrl-A: Home
+      Ctrl-E: End
+      Ctrl-K: [Shift-End, BackSpace]   # Kill to end of line
+```
+
+Because `modmap` output feeds into `keymap`, holding CapsLock and pressing `P` triggers the `Ctrl-P → Up` rule even though you never touched the physical Control key.
+
+### App-specific overrides
+
+You can scope any `modmap` or `keymap` block to specific applications using the `application` filter. Rules are evaluated top-to-bottom; put specific overrides **above** generic fallbacks.
+
+```yaml
+keymap:
+  - name: Keep Ctrl-P as-is inside terminals
+    application:
+      only: [Gnome-terminal, kitty, Alacritty]
+    remap:
+      Ctrl-P: Ctrl-P    # Pass through unchanged — let the terminal handle it
+
+  - name: Emacs navigation everywhere else
+    remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+      Ctrl-B: Left
+      Ctrl-F: Right
+```
+
+## Step 4 — Validate your config before running
+
+Use `--validate-config` to check a config file for syntax and semantic errors without starting xremap or touching any devices. It requires no special permissions.
+
+```bash
+xremap --validate-config config.yml
+```
+
+A valid config prints `Config is valid` and exits with code `0`. An invalid config prints the error and exits with a non-zero code, making this flag safe to use in CI or a pre-commit hook.
+
+```
+Config is valid
+```
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+Run `--validate-config` every time you edit your config before restarting xremap. It catches typos in key names and malformed YAML immediately.
 </Tip>
+
+## Step 5 — Discover key names and application names
+
+### Finding key names
+
+If you are not sure what a key is called in xremap, enable debug logging. xremap will print the name of every key event it sees.
+
+```bash
+RUST_LOG=debug sudo xremap config.yml
+```
+
+Press the key you want to identify. The output will contain lines like:
+
+```
+DEBUG xremap > key event: KeyPress(KEY_CAPSLOCK)
+```
+
+You can then use `CAPSLOCK`, `CapsLock`, or `KEY_CAPSLOCK` interchangeably in your config — key names are case-insensitive and the `KEY_` prefix is optional.
+
+<Note>
+The full list of key names comes from the Linux evdev scancode table. You can browse it at the [evdev scancodes source](https://github.com/emberian/evdev/blob/1d020f11b283b0648427a2844b6b980f1a268221/src/scancodes.rs#L26-L572). Custom aliases like `Ctrl_L`, `Shift_R`, and `Win_R` also exist.
+</Note>
+
+### Finding application names for app-specific rules
+
+Use the `--list-windows` flag to print the name and class of every currently open window. This is the value to use in `application.only` or `application.not`.
+
+```bash
+xremap --list-windows
+```
+
+Example output:
+
+```
+class: "Google-chrome",  title: "GitHub — Mozilla Firefox"
+class: "Gnome-terminal", title: "user@host:~"
+class: "Slack",          title: "Slack"
+```
+
+Use the `class` value in your application filters:
+
+```yaml
+keymap:
+  - application:
+      only: Google-chrome
+    remap:
+      Ctrl-L: Ctrl-L
+```
+
+<Warning>
+`--list-windows` is not supported on **GNOME Wayland** or **KDE Wayland**. On GNOME Wayland, query window classes via:
+
+```bash
+busctl --user call org.gnome.Shell /com/k0kubun/Xremap com.k0kubun.Xremap WMClasses
+```
+
+On KDE Wayland, xremap prints the active window to the console whenever a mapping with an application filter is triggered.
+</Warning>
+
+### Inspecting connected devices
+
+To see what input devices xremap can see, run:
+
+```bash
+xremap --list-devices
+```
+
+For more detail including vendor and product IDs:
+
+```bash
+xremap --device-details
+```
+
+## Putting it all together
+
+Here is a self-contained config that combines everything from this guide — a dual-purpose CapsLock, Emacs navigation everywhere except the terminal, and an app-specific override for the browser:
+
+```yaml
+modmap:
+  - name: CapsLock dual-role
+    remap:
+      CapsLock:
+        held: Ctrl_L
+        alone: Esc
+        alone_timeout_millis: 500
+
+keymap:
+  - name: Browser — pass through Ctrl-L
+    application:
+      only: [Google-chrome, firefox, Chromium]
+    remap:
+      Ctrl-L: Ctrl-L
+
+  - name: Terminal — pass through Ctrl-P and Ctrl-N
+    application:
+      only: [Gnome-terminal, kitty, Alacritty, wezterm]
+    remap:
+      Ctrl-P: Ctrl-P
+      Ctrl-N: Ctrl-N
+
+  - name: Emacs navigation everywhere else
+    remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+      Ctrl-B: Left
+      Ctrl-F: Right
+      Ctrl-A: Home
+      Ctrl-E: End
+      Ctrl-K: [Shift-End, BackSpace]
+```
+
+Validate it, then run it:
+
+```bash
+xremap --validate-config config.yml && sudo xremap config.yml
+```
+
+## Useful flags at a glance
+
+| Flag | Purpose |
+|---|---|
+| `--validate-config` | Check config and exit — no devices touched |
+| `--list-windows` | Print open windows with class and title |
+| `--list-devices` | List available input devices |
+| `--device-details` | Show device details including vendor/product IDs |
+| `--watch` | Auto-reload on new devices or config changes |
+| `--watch=config` | Reload config file when it changes on disk |
+| `--watch=config,device` | Watch both config and new devices |
+| `--mouse` | Include mouse devices (keyboards only by default) |
+| `RUST_LOG=debug` | Enable debug output including raw key names |
+
+## Next steps
+
+Now that you have a working config, explore the full configuration reference to learn about key sequences, named modes, command execution, virtual modifier keys, and device-specific rules.
+
+<CardGroup cols={2}>
+  <Card title="Configuration Overview" icon="file-code" href="/configuration">
+    Deep dive into every config option — modmap, keymap, modes, actions, and filters.
+  </Card>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Revisit the architecture and feature overview if you want to understand how event flow works.
+  </Card>
+</CardGroup>

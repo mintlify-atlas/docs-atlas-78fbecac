@@ -1,72 +1,104 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "xremap",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#1794d1",
+    "light": "#42a7db",
+    "dark": "#1794d1"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
+  "favicon": "https://media.brand.dev/8c8c5805-87e1-4708-95b2-f7dd7d4b2c91.png",
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:support@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/xremap/xremap"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/xremap/xremap"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Running xremap",
+            "pages": [
+              "running/with-sudo",
+              "running/without-sudo",
+              "running/user-service",
+              "running/system-service"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/modmap",
+              "configuration/keymap",
+              "configuration/application-device-filtering",
+              "configuration/modes",
+              "configuration/options"
+            ]
+          },
+          {
+            "group": "Key Reference",
+            "pages": [
+              "reference/key-names",
+              "reference/keymap-actions",
+              "reference/modmap-actions",
+              "reference/key-sequences",
+              "reference/multipurpose-key",
+              "reference/press-release-key"
+            ]
+          },
+          {
+            "group": "Experimental Features",
+            "pages": [
+              "experimental/double-tap",
+              "experimental/chords",
+              "experimental/oneshot",
+              "experimental/throttle",
+              "experimental/select"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/scripting",
+              "advanced/freebsd",
+              "advanced/feature-matrix",
+              "advanced/troubleshooting",
+              "advanced/upgrading"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands & Options",
+            "pages": [
+              "cli/overview",
+              "cli/device-options",
+              "cli/watch-options",
+              "cli/shell-completions"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

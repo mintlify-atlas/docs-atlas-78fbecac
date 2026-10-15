@@ -1,0 +1,170 @@
+---
+title: "Install xremap on Linux"
+sidebarTitle: "Installation"
+description: "Install xremap from AUR, Nix flake, release binaries, or compile from source. Choose the full variant or a desktop-specific build."
+---
+
+xremap ships as a single native binary and has no runtime dependencies beyond the Linux kernel's `evdev` and `uinput` interfaces. You can install it from your distribution's package manager, download a pre-built release binary, or compile it from source with Cargo. Since v0.15.13 a `full` variant is available that bundles support for every supported desktop in one binary — no need to pick a variant unless binary size matters.
+
+## Distribution packages
+
+<CardGroup cols={2}>
+  <Card title="Arch Linux" icon="archway" href="https://aur.archlinux.org/packages?K=xremap">
+    Packages are available in the **AUR**. Install with your preferred AUR helper, for example `paru -S xremap-hypr-bin` or search for the variant that matches your desktop.
+  </Card>
+  <Card title="NixOS" icon="snowflake" href="https://github.com/xremap/nix-flake/">
+    An official **Nix flake** is maintained at `github:xremap/nix-flake`. It provides a NixOS module and a Home Manager module.
+  </Card>
+  <Card title="Fedora" icon="hat-cowboy" href="https://copr.fedorainfracloud.org/coprs/blakegardner/xremap/">
+    Install via the community **Copr** repository maintained by blakegardner. Enable the repo and then install with `dnf`.
+  </Card>
+  <Card title="Debian / Ubuntu" icon="debian" href="https://github.com/BlakeGardner/xremap-debian">
+    A community **apt repository** provides `.deb` packages for Debian and Ubuntu. Follow the setup instructions in the linked repo.
+  </Card>
+  <Card title="Gentoo" icon="g" href="https://codeberg.org/gentoo/guru/src/branch/master/gui-apps/xremap">
+    Install via the **::guru** overlay. Add the overlay with `eselect repository enable guru`, then `emerge gui-apps/xremap`.
+  </Card>
+</CardGroup>
+
+## Release binaries
+
+Pre-built binaries for every release are published on the [GitHub Releases page](https://github.com/xremap/xremap/releases). Each release provides several binary variants — download the one that matches your desktop environment.
+
+### Choosing a variant
+
+Since **v0.15.13** a `full` variant is the recommended download for most users. It includes support for all desktops and window managers in a single binary so you do not need to switch binaries if you change desktop environments.
+
+| Binary name | Included desktop support |
+|---|---|
+| `xremap-linux-x86_64-full.zip` | GNOME, X11, Hyprland, KDE, wlroots, Niri, COSMIC, Pantheon, socket |
+| `xremap-linux-x86_64-gnome.zip` | GNOME only |
+| `xremap-linux-x86_64-x11.zip` | X11 only |
+| `xremap-linux-x86_64-hypr.zip` | Hyprland only |
+| `xremap-linux-x86_64-kde.zip` | KDE Plasma only |
+| `xremap-linux-x86_64-wlroots.zip` | wlroots compositors only |
+| `xremap-linux-x86_64-niri.zip` | Niri only |
+
+<Steps>
+  <Step title="Download the binary">
+    Go to the [releases page](https://github.com/xremap/xremap/releases) and download the archive for your architecture and desktop variant.
+  </Step>
+  <Step title="Extract and install">
+    ```bash
+    unzip xremap-linux-x86_64-full.zip
+    sudo install -Dm755 xremap /usr/local/bin/xremap
+    ```
+  </Step>
+  <Step title="Verify the installation">
+    ```bash
+    xremap --version
+    ```
+  </Step>
+</Steps>
+
+## Build from source
+
+Building from source requires a stable Rust toolchain. Install Rust via [rustup](https://rustup.rs/) if you do not already have it.
+
+### From crates.io
+
+```bash
+cargo install xremap --features full
+```
+
+To install a desktop-specific variant instead, replace `full` with the feature flag that matches your desktop:
+
+```bash
+# GNOME (X11 or Wayland)
+cargo install xremap --features gnome
+
+# Hyprland
+cargo install xremap --features hypr
+
+# KDE Plasma
+cargo install xremap --features kde
+
+# wlroots-based compositors (Sway, River, …)
+cargo install xremap --features wlroots
+
+# Niri
+cargo install xremap --features niri
+
+# COSMIC desktop
+cargo install xremap --features cosmic
+
+# Pantheon (elementary OS)
+cargo install xremap --features pantheon
+
+# Generic X11
+cargo install xremap --features x11
+
+# Unix socket interface only
+cargo install xremap --features socket
+```
+
+### Feature flags reference
+
+| Flag | Enables | Extra dependency |
+|---|---|---|
+| `full` | All of the below | — |
+| `gnome` | GNOME Shell integration via D-Bus | `zbus` |
+| `x11` | X11 window tracking | `x11rb` |
+| `hypr` | Hyprland IPC | `hyprland` |
+| `kde` | KDE Plasma via D-Bus | `zbus` |
+| `wlroots` | wlroots Wayland protocol | `wayland-client`, `wayland-protocols-wlr` |
+| `niri` | Niri IPC | `niri-ipc` |
+| `cosmic` | COSMIC Wayland protocols | `wayland-client`, `wayland-scanner`, `wayland-backend` |
+| `pantheon` | Pantheon via D-Bus | `zbus` |
+| `socket` | Unix socket bridge | `futures-util`, `zbus` |
+
+### From the GitHub repository
+
+```bash
+git clone https://github.com/xremap/xremap.git
+cd xremap
+cargo build --release --features full
+sudo install -Dm755 target/release/xremap /usr/local/bin/xremap
+```
+
+## Enable the uinput kernel module
+
+xremap writes synthesised key events through the Linux `uinput` module. On most distributions this module is present but not loaded automatically.
+
+<Steps>
+  <Step title="Load the module for the current session">
+    ```bash
+    sudo modprobe uinput
+    ```
+  </Step>
+  <Step title="Persist the module across reboots">
+    ```bash
+    echo uinput | sudo tee /etc/modules-load.d/uinput.conf
+    ```
+  </Step>
+  <Step title="Confirm the module is loaded">
+    ```bash
+    lsmod | grep uinput
+    ```
+
+    You should see a line like `uinput   20480  1`.
+  </Step>
+</Steps>
+
+<Note>
+Some distributions (Arch, Fedora) load `uinput` automatically when a process opens `/dev/uinput`. If xremap starts without error you do not need to persist the module manually.
+</Note>
+
+## Running with or without sudo
+
+After installation you have two options for granting xremap access to `/dev/input/*` and `/dev/uinput`:
+
+- **Run with `sudo`** — the simplest path. See the upstream [running with sudo](https://github.com/xremap/xremap/blob/master/doc/running_with_sudo.md) guide for how to configure passwordless access for just the xremap binary.
+- **Run without `sudo`** — add your user to the `input` group and configure a udev rule to grant write access to `/dev/uinput`. See the [running without sudo](https://github.com/xremap/xremap/blob/master/doc/running_without_sudo.md) guide.
+
+<Tip>
+If you manage xremap as a systemd user service, the no-sudo path with a udev rule is the cleanest approach because it avoids embedding `sudo` inside a unit file.
+</Tip>
+
+## Next steps
+
+Once xremap is installed and `uinput` is available, head to the [Quickstart](/quickstart) guide to write your first config and start remapping keys.

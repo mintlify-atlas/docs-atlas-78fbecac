@@ -1,0 +1,162 @@
+---
+title: "Shell Completions for xremap"
+sidebarTitle: "Shell Completions"
+description: "Generate and install xremap shell completions for bash, fish, zsh, powershell, and elvish using the --completions flag."
+---
+
+xremap can generate tab-completion scripts for the most common shells via the `--completions` flag. The scripts are produced at runtime by the same [clap](https://github.com/clap-rs/clap) argument parser that handles all other CLI options, so the completions automatically reflect the flags and values supported by the exact version you have installed — no separate update step required.
+
+---
+
+## --completions
+
+<ParamField path="--completions" type="SHELL">
+  Print a shell completion script to stdout and exit. No config file is required.
+
+  Supported shells: `bash`, `elvish`, `fish`, `powershell`, `zsh`
+
+  ```bash
+  xremap --completions <SHELL>
+  ```
+</ParamField>
+
+---
+
+## Quick (session-only) usage
+
+The fastest way to try completions is to source the output directly in your current shell session. The script is regenerated each time, so it always matches your installed version.
+
+<CodeGroup>
+```bash bash
+eval "$(xremap --completions bash)"
+```
+
+```fish fish
+xremap --completions fish | source
+```
+
+```zsh zsh
+# zsh needs a function directory entry; see the persistent section below
+# for the recommended approach. For a quick one-off test:
+source <(xremap --completions zsh)
+```
+
+```powershell PowerShell
+Invoke-Expression (& xremap --completions powershell | Out-String)
+```
+
+```elvish Elvish
+xremap --completions elvish | eval
+```
+</CodeGroup>
+
+---
+
+## Persistent installation
+
+For completions to be available in every new shell session, write the script to the location your shell reads at startup.
+
+### bash
+
+Add the following line to your `~/.bashrc` (or `~/.bash_profile`):
+
+```bash
+# ~/.bashrc
+eval "$(xremap --completions bash)"
+```
+
+Alternatively, store it as a static file so your shell does not need to spawn xremap every startup:
+
+```bash
+xremap --completions bash > ~/.local/share/bash-completion/completions/xremap
+```
+
+### fish
+
+Fish reads completion files from `~/.config/fish/completions/`. Write the script there once:
+
+```fish
+xremap --completions fish > ~/.config/fish/completions/xremap.fish
+```
+
+Fish automatically sources all `.fish` files in that directory on startup — no further configuration needed.
+
+### zsh
+
+zsh uses a `fpath` array of directories where it looks for completion functions. The recommended approach is to create a private completions directory, write the script there, and ensure it is on your `fpath` before `compinit` runs:
+
+```zsh
+# 1. Create the directory
+mkdir -p ~/.zfunc
+
+# 2. Generate the completion script
+xremap --completions zsh > ~/.zfunc/_xremap
+```
+
+Then add these lines to your `~/.zshrc` **before** any call to `compinit`:
+
+```zsh
+# ~/.zshrc
+fpath+=~/.zfunc
+autoload -Uz compinit && compinit
+```
+
+<Note>
+  The completion file must be named `_xremap` (with the leading underscore) so that zsh's completion system picks it up correctly.
+</Note>
+
+### PowerShell
+
+PowerShell loads a profile script on startup. Find the path to your profile:
+
+```powershell
+echo $PROFILE
+```
+
+Append the completion script to that file:
+
+```powershell
+xremap --completions powershell >> $PROFILE
+```
+
+Or generate it once and dot-source from your profile:
+
+```powershell
+# Generate a static file
+xremap --completions powershell > "$HOME/.config/xremap_completions.ps1"
+
+# Add this line to your $PROFILE
+. "$HOME/.config/xremap_completions.ps1"
+```
+
+### Elvish
+
+Elvish reads `~/.config/elvish/rc.elv` on startup. Append a live eval call:
+
+```elvish
+# ~/.config/elvish/rc.elv
+eval (xremap --completions elvish | slurp)
+```
+
+Or generate a static module and import it:
+
+```elvish
+# Generate once
+xremap --completions elvish > ~/.config/elvish/lib/xremap-completions.elv
+
+# In rc.elv
+use xremap-completions
+```
+
+---
+
+## Why completions stay accurate
+
+The completion scripts are generated directly from xremap's clap argument definitions at runtime. This means:
+
+- Adding a new flag in a future xremap release automatically appears in completions after you regenerate the script.
+- If you install a different xremap variant (e.g. one compiled without a particular desktop backend), only the flags and `--desktop` values supported by that build will be completed.
+
+<Tip>
+  If you manage xremap through a package manager that updates it automatically, consider generating the completion script dynamically (using `eval` or `source`) rather than storing a static file. That way completions never go stale after an upgrade.
+</Tip>

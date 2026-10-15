@@ -1,0 +1,151 @@
+---
+title: "Run xremap with sudo"
+sidebarTitle: "With sudo"
+description: "Run xremap with sudo for the simplest setup. Covers uinput permissions, app-specific remapping on GNOME, X11, Niri, Sway, and COSMIC."
+---
+
+Running xremap with `sudo` is the fastest way to get started. It requires no changes to your user account's group membership and works across all desktop environments that support it. The trade-off is that any programs launched through xremap key bindings will run as `root`, and application-specific remapping needs a few extra steps depending on your desktop.
+
+## Pros and cons
+
+**Pros**
+- Simplest setup — no group changes or udev rules required.
+- Works immediately after installing xremap.
+
+**Cons**
+- Programs launched by xremap run as `root`, which is a security risk.
+- If the config file is writable by other users, they can effectively execute arbitrary commands as `root` by modifying it.
+- Application-specific remapping requires extra configuration (see below).
+
+## Set up the uinput module
+
+xremap uses the `uinput` kernel module to emit artificial input events. Check whether it is already loaded:
+
+```bash
+ls -l /dev/uinput
+```
+
+If the device node is missing, make the module load automatically at boot:
+
+```bash
+echo uinput | sudo tee /etc/modules-load.d/uinput.conf
+```
+
+### Apply without rebooting
+
+Load the module immediately so you can test without rebooting:
+
+```bash
+sudo modprobe uinput
+```
+
+## Basic usage
+
+Once the `uinput` module is loaded, start xremap:
+
+```bash
+sudo xremap config.yml
+```
+
+Press <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop it — all keys return to their original behaviour as soon as xremap exits.
+
+---
+
+## Application-specific remapping
+
+Application-specific remapping lets xremap apply different rules depending on which window is focused. The steps differ by desktop environment.
+
+### X11
+
+On X11, run xremap normally:
+
+```bash
+sudo xremap config.yml
+```
+
+If xremap prints `No protocol specified` and cannot connect to the display, grant root access to your X session:
+
+```bash
+xhost +SI:localuser:root
+```
+
+### GNOME Wayland
+
+<Steps>
+
+<Step title="Install the GNOME Shell extension">
+  Install the [xremap GNOME Shell extension](https://extensions.gnome.org/extension/5060/xremap/) from the GNOME Extensions website, then toggle it **OFF → ON** to activate it.
+</Step>
+
+<Step title="Allow root on the session D-Bus">
+  Edit `/usr/share/dbus-1/session.conf` and add `<allow user="root"/>` inside the `<policy context="default">` block, then reboot your machine:
+
+  ```diff
+     <policy context="default">
+  +    <allow user="root"/>
+       <!-- Allow everything to be sent -->
+       <allow send_destination="*" eavesdrop="true"/>
+       <!-- Allow everything to be received -->
+  ```
+</Step>
+
+<Step title="Start xremap">
+  Run xremap with `-E` to forward your session environment to root:
+
+  ```bash
+  sudo -E xremap config.yml
+  ```
+</Step>
+
+</Steps>
+
+<Tip>
+  If you prefer not to transfer all environment variables to root, you can forward only what GNOME needs:
+
+  ```bash
+  sudo env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+           XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+           xremap config.yml
+  ```
+</Tip>
+
+### KDE Plasma Wayland
+
+<Warning>
+  xremap cannot run as root under KDE Plasma Wayland. Use the [without-sudo](./without-sudo) or [system service](./system-service) methods instead.
+</Warning>
+
+### Niri, Sway, and COSMIC Wayland
+
+These compositors identify the session through environment variables, so pass them through with `-E`:
+
+```bash
+sudo -E xremap config.yml
+```
+
+<Note>
+  The full security implications of forwarding all environment variables to root are not fully known. If you prefer to transfer only the minimum required variables, use one of the alternatives below.
+</Note>
+
+**Niri — minimal env transfer**
+
+```bash
+sudo NIRI_SOCKET="$NIRI_SOCKET" xremap config.yml
+```
+
+**Sway — minimal env transfer**
+
+```bash
+sudo env WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
+         XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+         SWAYSOCK="$SWAYSOCK" \
+         xremap config.yml
+```
+
+**COSMIC Wayland — minimal env transfer**
+
+```bash
+sudo env WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
+         XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+         xremap config.yml
+```

@@ -1,0 +1,224 @@
+---
+title: "Application and Device Filtering in xremap"
+sidebarTitle: "App & Device Filters"
+description: "Apply remappings only to specific applications, window titles, or input devices using xremap's application, window, and device filter options."
+---
+
+xremap can restrict any `modmap` or `keymap` entry to a specific context: the active application, the active window title, or the physical input device generating the event. This lets you build configs where the same key does different things in different programs, or where a rule only fires for one specific keyboard connected to your machine.
+
+Each filter supports two modes: `only` (allowlist) and `not` (blocklist). If both are specified in the same filter object, `only` takes precedence and `not` has no effect.
+
+## Application filter
+
+The `application` filter matches against the **WM class** of the currently focused window.
+
+```yaml
+application:
+  only: [firefox]          # Active only when Firefox is focused
+  # or
+  not: [firefox, slack]    # Active in every app except Firefox and Slack
+```
+
+<ParamField path="application.only" type="string | string[]">
+  Allowlist of application names. The entry fires only when the active app matches one of these values.
+</ParamField>
+
+<ParamField path="application.not" type="string | string[]">
+  Blocklist of application names. The entry fires in any app that does not match.
+</ParamField>
+
+### Matching rules
+
+Application names can be:
+- An **exact string**: `"firefox"` matches only the class named exactly `firefox`.
+- A **regex** surrounded by `/`: `"/firefox/"` matches any class containing `firefox` (case-sensitive by default).
+
+```yaml
+application:
+  only: [/jetbrains/, /code/]   # Matches any JetBrains IDE or VS Code variant
+```
+
+### Finding application names
+
+<Tabs>
+  <Tab title="Most desktops (X11, wlroots, etc.)">
+    Use the built-in window listing command (available since v0.15.5):
+
+    ```bash
+    xremap --list-windows
+    ```
+
+    This prints every open window's `app_class` and `title`, which are the values used for `application` and `window` filters respectively.
+  </Tab>
+  <Tab title="GNOME Wayland">
+    `--list-windows` does not work on GNOME Wayland. Use the GNOME Shell D-Bus interface instead:
+
+    ```bash
+    busctl --user call org.gnome.Shell /com/k0kubun/Xremap com.k0kubun.Xremap WMClasses
+    ```
+
+    Alternatively, press **Alt+F2**, type `lg` to open GNOME's LookingGlass debugger, and inspect each window's `WMClass` property there.
+  </Tab>
+  <Tab title="KDE Wayland">
+    `--list-windows` does not work on KDE Wayland. Instead:
+
+    1. Add a keymap entry with a **dummy application filter** (e.g. `only: [DUMMY_APP_NAME]`) and trigger it once.
+    2. xremap will then begin printing active window information to its console output every time you switch windows:
+
+    ```
+    active window: caption: 'My Window Title', class: 'org.kde.dolphin'
+    ```
+
+    Use the `class` value for `application` matching and the `caption` value for `window` matching.
+
+    If xremap is running as a systemd service, view the output with:
+
+    ```bash
+    journalctl -f
+    ```
+  </Tab>
+</Tabs>
+
+### Application-specific key overrides pattern
+
+A common pattern is to define generic bindings that apply everywhere and then override specific keys for individual apps. Because xremap uses **first-match wins**, specific overrides go at the **top** of the keymap list and the generic fallback goes at the **bottom**:
+
+```yaml
+keymap:
+  - name: LibreOffice Writer — custom word-forward
+    application:
+      only: libreoffice-writer
+    remap:
+      Alt-f: [Right, C-Right, Left]   # Move to end of word but stop before trailing space
+
+  - name: Generic Emacs word movement (all other apps)
+    remap:
+      Alt-f: C-Right
+      Alt-b: C-Left
+```
+
+When LibreOffice Writer is focused, the first entry matches `Alt-f` and the second is never reached. In every other app, only the second entry matches.
+
+## Window filter
+
+The `window` filter matches against the **title** of the currently focused window. Unlike `application`, window filters **always use regex** patterns.
+
+```yaml
+window:
+  only: [/My Document/, /untitled/]
+  # or
+  not: [/^Mozilla Firefox$/]
+```
+
+<ParamField path="window.only" type="regex | regex[]">
+  Allowlist of window title regexes (strings surrounded by `/`). The entry fires only when the active window title matches.
+</ParamField>
+
+<ParamField path="window.not" type="regex | regex[]">
+  Blocklist of window title regexes. The entry fires for any window title that does not match.
+</ParamField>
+
+On KDE Wayland, the window title corresponds to the `caption` property printed in the console log. On other platforms it is what `xremap --list-windows` shows in the `title` column.
+
+## Device filter
+
+The `device` filter restricts a `modmap` or `keymap` entry to events originating from a specific physical input device.
+
+```yaml
+device:
+  only: ["/dev/input/event2"]
+  # or
+  not: ["event0", "event1"]
+```
+
+<ParamField path="device.only" type="string | string[]">
+  Allowlist of device identifiers. The entry fires only for events from matching devices.
+</ParamField>
+
+<ParamField path="device.not" type="string | string[]">
+  Blocklist of device identifiers. The entry fires for events from any device that does not match.
+</ParamField>
+
+### Device identifier formats
+
+Each string in `only` or `not` can be any of the following:
+
+| Format | Example | Description |
+|---|---|---|
+| Full device path | `/dev/input/event0` | Absolute path under `/dev/input/` |
+| Filename only | `event0` | Just the filename portion of the path |
+| Symlink path | `/dev/input/by-id/Cool_Device` | Symlinks are supported since v0.14.8 |
+| Device name | `Some Cool Device Name` | Full device name as reported by the kernel |
+| Substring of name | `Cool Device` | Any substring of the device name |
+| Vendor+product ID | `ids:0x3f0:0x24` | Hex IDs with optional `0x` prefix |
+
+<Note>
+  Unlike the `application` filter, **regex is not supported** for `device`. All matching is done by exact string or substring.
+</Note>
+
+### Vendor/product ID format
+
+Vendor and product IDs must be given in **hexadecimal**, with or without the `0x` prefix:
+
+```yaml
+device:
+  only:
+    - ids:0x3f0:0x24    # Match vendor 0x3f0 AND product 0x24
+    - ids:0x3f0:0       # Match vendor 0x3f0 with any product
+    - ids:0:0x24        # Match any vendor with product 0x24
+```
+
+### Finding device names and paths
+
+```bash
+# Quick overview of all recognized devices
+xremap --list-devices
+
+# Detailed information including vendor/product IDs
+xremap --device-details
+```
+
+xremap also logs each recognized device at startup, which is visible when running in the foreground.
+
+### Device filter examples
+
+```yaml
+keymap:
+  - name: External keyboard only
+    device:
+      not: "/dev/input/event0"    # Exclude the built-in laptop keyboard
+    remap:
+      W: Up
+      A: Left
+      S: Down
+      D: Right
+
+  - name: Specific device by name
+    device:
+      only: ["Some Cool Device Name", "Another Device"]
+    remap:
+      F1: { launch: ["notify-send", "External key F1"] }
+
+  - name: Match by vendor/product ID
+    device:
+      only: [ids:0x3f0:0x24]
+    remap:
+      CapsLock: Ctrl_L
+```
+
+## Combining filters
+
+You can combine `application`, `window`, and `device` in the same entry. All filters must match simultaneously (logical AND):
+
+```yaml
+keymap:
+  - name: Firefox on external keyboard only
+    application:
+      only: [firefox]
+    device:
+      not: [event0]
+    window:
+      only: [/GitHub/]
+    remap:
+      Ctrl-K: { launch: ["notify-send", "GitHub search shortcut"] }
+```

@@ -1,0 +1,263 @@
+---
+title: "Configuring keymap in xremap"
+sidebarTitle: "keymap"
+description: "The keymap section remaps key combos and sequences. Covers exact_match, key sequences, action dispatch, and first-match priority ordering."
+---
+
+The `keymap` section is where xremap intercepts **key combinations and sequences** and transforms them into other combinations, sequences of key presses, or named actions. Unlike `modmap`, which operates on single raw keys, `keymap` receives the already-translated output of `modmap` and can match patterns as complex as Emacs-style `C-x C-c` chord sequences.
+
+Key actions in `keymap` press and release keys as soon as the last key in a trigger combination is pressed. The remapped output is then forwarded directly to the OS.
+
+## Structure
+
+`keymap` is a **list** of keymap entries. Each entry can have:
+
+<ParamField path="name" type="string">
+  Optional label, shown in debug output.
+</ParamField>
+
+<ParamField path="exact_match" type="boolean" default="false">
+  When `false` (the default), extra modifier keys are allowed and carried forward. When `true`, the trigger must match the pressed modifiers exactly.
+</ParamField>
+
+<ParamField path="remap" type="map" required>
+  A mapping from trigger combos or key sequences to output combos, sequences, or action objects.
+</ParamField>
+
+<ParamField path="application" type="object">
+  Scope this entry to specific applications. See [App & Device Filters](/configuration/application-device-filtering).
+</ParamField>
+
+<ParamField path="window" type="object">
+  Scope this entry to windows whose title matches a regex. See [App & Device Filters](/configuration/application-device-filtering).
+</ParamField>
+
+<ParamField path="device" type="object">
+  Scope this entry to specific input devices. See [App & Device Filters](/configuration/application-device-filtering).
+</ParamField>
+
+<ParamField path="mode" type="string | string[]">
+  Only activate this entry in the listed modes. If absent, the entry is always active. See [Modes](/configuration/modes).
+</ParamField>
+
+## Key combo syntax
+
+Modifiers and keys are joined with `-`. The modifier prefix can use any of the standard aliases (`Ctrl`, `C`, `Alt`, `M`, `Shift`, `Super`, `Win`, etc.):
+
+```yaml
+Ctrl-P          # Control + P
+C-Shift-n       # Control + Shift + N
+Alt-F4          # Alt + F4
+Super-l         # Super (Windows key) + L
+Ctrl_R-C        # Right Control + C  (left/right-specific)
+```
+
+All key names are case-insensitive. The `KEY_` prefix is optional.
+
+## Remap types
+
+### Key combo → single key or combo
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+      Ctrl-F: Right
+      Ctrl-B: Left
+```
+
+### Key combo → sequence of keys/combos
+
+Map one trigger to a **list** of keys or combos that are sent one after another:
+
+```yaml
+keymap:
+  - remap:
+      C-k: [Shift-End, Backspace]    # Emacs kill-to-EOL
+      C-o: [Enter, Left]             # Open line below
+```
+
+### Key combo → action
+
+xremap supports a set of built-in named actions:
+
+```yaml
+keymap:
+  - remap:
+      F9: { action: reload }         # Reload xremap config
+```
+
+Available actions include `reload`. See the [Actions reference](/reference/keymap-actions) for the full list.
+
+### Key combo → launch command
+
+Run an external program when a key combo is triggered:
+
+```yaml
+keymap:
+  - remap:
+      CapsLock: { launch: ["notify-send", "hello"] }
+      Super-E: { launch: ["bash", "-c", "xdg-open ~"] }
+```
+
+<Warning>
+  The `launch` action requires xremap to be started with `--allow-launch=true` (since v0.15.1). Without this flag the behaviour is ambiguous and may be disabled in future releases.
+</Warning>
+
+### Nested keymap (key sequence)
+
+To match **sequences** (like Emacs `C-x C-c`), nest a `remap` object inside the first trigger. The inner mappings are only evaluated after the first key is pressed:
+
+```yaml
+keymap:
+  - remap:
+      C-x:
+        remap:
+          C-c: C-q              # C-x then C-c → quit
+          C-f: C-o              # C-x then C-f → open file
+          k:   C-F4             # C-x then k   → close tab
+          h:   [C-Home, C-a]    # C-x then h   → select all
+        timeout_millis: 200     # Optional. Cancel sequence after 200 ms of inactivity
+        timeout_key: space      # Optional. Key(s) to emit on timeout instead of nothing
+```
+
+<ParamField path="timeout_millis" type="integer">
+  If set, the sequence is abandoned after this many milliseconds with no key press. No timeout by default.
+</ParamField>
+
+<ParamField path="timeout_key" type="key | key[]">
+  Key or keys to send when the timeout fires. Useful for bouncy keys or transparent passthrough on timeout.
+</ParamField>
+
+### Emacs mark mode (`with_mark`)
+
+For Emacs emulation, `with_mark` conditionally adds `Shift` to the output when the mark is active:
+
+```yaml
+keymap:
+  - remap:
+      C-space: { set_mark: true }   # Set mark
+      C-g:     [Esc, { set_mark: false }]
+      C-f: { with_mark: Right }     # Shift-Right when mark is active, Right otherwise
+      C-n: { with_mark: Down }
+```
+
+### Ignore the next key (`escape_next_key`)
+
+Tells xremap to pass the very next key press through to the OS without evaluating any keymap rules (modmap still applies):
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-q: { escape_next_key: true }
+```
+
+### Set mode from keymap
+
+Switch to a named mode as an action:
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-U: { set_mode: Up }
+      Ctrl-I: { set_mode: Down }
+```
+
+See [Modes](/configuration/modes) for a full example.
+
+## `exact_match`
+
+By default xremap uses **inexact matching**: if you define `Ctrl-N: Down` and the user presses `Ctrl-Shift-N`, xremap matches the rule and forwards `Shift-Down` (the extra `Shift` modifier is preserved and applied to the output).
+
+With `exact_match: true` the entry only fires when the pressed modifiers match the rule exactly — no extras allowed.
+
+```yaml
+keymap:
+  - exact_match: true
+    remap:
+      Ctrl-P: Up     # Only fires for exactly Ctrl+P; Ctrl-Shift-P passes through unchanged
+      Ctrl-N: Down
+```
+
+<Note>
+  A rule written with exact modifiers (e.g. `Ctrl_R-C`) always takes precedence over an inexact match regardless of the `exact_match` setting.
+</Note>
+
+## Left/right modifier distinction
+
+Use the `_L` / `_R` suffix on modifier names to differentiate the two sides of a key:
+
+```yaml
+keymap:
+  - remap:
+      Ctrl_R-C: End    # Right Ctrl + C → End
+      Ctrl_R-X: Home   # Right Ctrl + X → Home
+      # Left Ctrl + C still copies normally
+```
+
+## First-match wins
+
+xremap evaluates keymap entries **in order** and uses the first matching rule. Put specific overrides **before** generic catch-all rules:
+
+```yaml
+keymap:
+  - name: LibreOffice Writer override
+    application:
+      only: libreoffice-writer
+    remap:
+      Alt-f: [Right, C-Right, Left]   # Custom word-forward for LO Writer
+
+  - name: Generic Emacs word movement
+    remap:
+      Alt-f: C-Right    # Applies to all other apps (and LO Writer won't reach this)
+      Alt-b: C-Left
+```
+
+<Warning>
+  If the generic rule comes first, the specific override will never be reached for that application. Always list more-specific entries earlier in the list.
+</Warning>
+
+## Comprehensive example
+
+The following is adapted from the [Emacs example config](https://github.com/k0kubun/xremap/blob/master/example/emacs.yml) and demonstrates key sequences, `with_mark`, actions, and application filtering working together:
+
+```yaml
+keymap:
+  - name: Emacs bindings (all apps except Emacs itself)
+    application:
+      not: [Emacs]
+    remap:
+      # Basic cursor movement with mark support
+      C-b: { with_mark: Left }
+      C-f: { with_mark: Right }
+      C-p: { with_mark: Up }
+      C-n: { with_mark: Down }
+
+      # Word movement
+      M-b: { with_mark: C-Left }
+      M-f: { with_mark: C-Right }
+
+      # Beginning / end of line
+      C-a: { with_mark: Home }
+      C-e: { with_mark: End }
+
+      # Copy / paste / cut
+      C-w: [C-x, { set_mark: false }]
+      M-w: [C-c, { set_mark: false }]
+      C-y: [C-v, { set_mark: false }]
+
+      # Mark
+      C-space: { set_mark: true }
+      C-g: [Esc, { set_mark: false }]
+
+      # C-x key sequences
+      C-x:
+        remap:
+          h:   [C-Home, C-a, { set_mark: true }]  # select all
+          C-f: C-o                                  # open file
+          C-s: C-s                                  # save
+          k:   C-F4                                 # close tab
+          C-c: C-q                                  # quit
+        timeout_millis: 500
+```

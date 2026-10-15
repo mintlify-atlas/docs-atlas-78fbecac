@@ -1,0 +1,123 @@
+---
+title: "Double Tap Key Actions in xremap"
+sidebarTitle: "Double Tap"
+description: "Trigger a different action when a key is double-tapped in xremap. Configure timeout and supported actions using the experimental_map section."
+---
+
+The double tap feature in xremap lets you fire a separate action when a key is pressed twice in quick succession. This is useful for assigning secondary functions to keys you don't want to permanently reassign — for example, double-tapping the Super key to toggle mute, or double-tapping a mouse button to trigger a keyboard shortcut.
+
+<Warning>
+  Double tap lives in the `experimental_map` configuration section. Experimental features may have **breaking changes in any version update** of xremap. Changes will be noted in `CHANGELOG.md`. Features available in `modmap` — such as `device`, `mode`, key-to-key mapping, multi-purpose key, and press/release — do **not** work inside `experimental_map`. Application-specific remapping via `application` and `window` works since **v0.15.5**.
+</Warning>
+
+Working since **v0.14.18**.
+
+## How It Works
+
+When you double-tap a trigger key within the configured timeout window, the mapped action fires. Key events from the first press of the trigger key are **buffered** until xremap decides whether a double tap has occurred. This ensures the action is logically emitted at the moment of the first press.
+
+- If the double tap is confirmed, the trigger key is **fully suppressed** — it is neither pressed nor released on its own.
+- While the trigger key is **held down** after the second tap, the action repeats.
+- When the trigger key is released, the action is also released.
+
+The output of `experimental_map` is passed through `modmap` and then to `keymap`, so further remapping in those sections still applies.
+
+<Note>
+  Double tap works independently of other keys held at the time. You can hold a modifier while double-tapping a trigger key and it will behave as expected.
+</Note>
+
+## Syntax
+
+```yaml
+experimental_map:
+  - remap:
+      KEY:
+        double: ACTION
+        timeout: 200  # Optional. Default is 200ms.
+```
+
+The `timeout` field is optional and defaults to `200` milliseconds. If the second key press does not occur within this window, the original key events pass through normally.
+
+## Possible Actions
+
+The action emitted by double tap follows the same rules as other `experimental_map` actions. You can emit nothing, a single key, or a list of keys. All keys in the action are pressed when the remap triggers and released in the same order when the remap releases.
+
+```yaml
+experimental_map:
+  - remap:
+      f10:
+        double: null        # No action
+      f11:
+        double: A           # Single key
+      f12:
+        double: [A, B, C]   # Multiple keys pressed in order
+```
+
+## Examples
+
+### Double tap Super to mute
+
+Double-tap the Super key (Win/Meta) to toggle mute:
+
+```yaml
+experimental_map:
+  - remap:
+      LeftMeta:
+        double: mute
+        timeout: 200  # Optional. Default is 200ms.
+```
+
+### Double tap a mouse button
+
+Double-tap the right mouse button to send `R`:
+
+```yaml
+experimental_map:
+  - remap:
+      btn_right:
+        double: R
+        timeout: 200  # Optional. Default is 200ms.
+```
+
+<Note>
+  To use mouse buttons in xremap, start it with the `--mouse` argument.
+</Note>
+
+### Double tap to repeat an alone-action
+
+The multi-purpose key does not support repeating its alone-action, because holding the key emits the hold-action instead. A common workaround is to use double tap to trigger a virtual key that is then mapped back to the alone-action:
+
+```yaml
+experimental_map:
+  - remap:
+      space:
+        # Routes around the modmap remapping below
+        double: BTN_TRIGGER_HAPPY1
+
+modmap:
+  - remap:
+      BTN_TRIGGER_HAPPY1: space
+      space:
+        held: shift_l
+        alone: space
+```
+
+When `space` is double-tapped, it emits `BTN_TRIGGER_HAPPY1`, which the modmap then maps back to `space` — bypassing the multi-purpose binding and allowing the repeat to work.
+
+## Limitations
+
+<Warning>
+  Double tap is **not well-suited for frequent typing keys**. For example, mapping the `O` key would trigger on every word that contains `oo`, such as "good" or "food". Prefer keys that appear rarely or in isolation, such as modifier keys, function keys, or mouse buttons.
+</Warning>
+
+## `experimental_map` Restrictions
+
+The following features from `modmap` are **not available** inside `experimental_map`:
+
+- `device` filtering
+- `mode` switching
+- Key-to-key mapping
+- Multi-purpose key (`held`/`alone`)
+- `press`/`release` event handling
+
+`application` and `window` context matching **do** work since v0.15.5.

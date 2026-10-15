@@ -1,0 +1,141 @@
+---
+title: "Watch Mode and Config Validation in xremap"
+sidebarTitle: "Watch Options"
+description: "Use xremap --watch to auto-reload config files or detect new devices. Use --validate-config to check configs without starting xremap."
+---
+
+By default xremap reads the config once at startup and captures whatever devices are present at that moment. The `--watch` flag lifts both of those constraints: it can detect newly plugged-in devices and reload your config files the moment they change on disk. Paired with `--validate-config`, you get a fast feedback loop for editing configs without ever restarting the daemon.
+
+---
+
+## --watch
+
+<ParamField path="--watch[=<WATCH>...]" type="device | config">
+  Watch for new input devices and/or config file changes. The flag accepts an optional comma-separated list of targets. When the list is omitted, xremap defaults to watching for new devices.
+
+  | Invocation | Effect |
+  |------------|--------|
+  | `--watch` | Watch for new devices (same as `--watch=device`) |
+  | `--watch=device` | Add newly connected devices automatically |
+  | `--watch=config` | Reload config files when they change on disk |
+  | `--watch=config,device` | Do both |
+</ParamField>
+
+### Watch mode examples
+
+<CodeGroup>
+```bash Watch devices only
+# Devices plugged in after xremap starts are picked up automatically
+xremap --watch config.yml
+```
+
+```bash Watch devices (explicit)
+xremap --watch=device config.yml
+```
+
+```bash Watch config files
+# Changes saved to config.yml are reloaded without restarting
+xremap --watch=config config.yml
+```
+
+```bash Watch both
+xremap --watch=config,device config.yml
+```
+</CodeGroup>
+
+<Note>
+  When `--watch=device` is active and all captured devices are disconnected, xremap keeps running and prints:
+
+  ```
+  No device was selected, but --watch is waiting for new devices.
+  ```
+
+  Without `--watch`, xremap exits with an error when the last device disappears.
+</Note>
+
+### How config watching works
+
+When `--watch=config` is enabled, xremap uses `inotify` to monitor each config file for write events. After a change is detected, xremap waits for a configurable debounce period before reloading. If the new config is invalid, xremap logs the error and continues running with the last valid configuration — your remappings keep working.
+
+The debounce duration is controlled by the `config_watch_debounce_ms` option in your config file. See the [Configuration Options](/configuration/options) reference for details.
+
+---
+
+## --validate-config
+
+<ParamField path="--validate-config" type="flag">
+  Parse and validate the given config file(s) using the same checks xremap performs at startup, then exit — without touching any input devices or requiring elevated permissions.
+
+  ```bash
+  xremap --validate-config config.yml
+  ```
+
+  **Exit behaviour:**
+
+  | Result | Output | Exit code |
+  |--------|--------|-----------|
+  | Config is valid | `Config is valid` | `0` |
+  | Config has errors | Error description | non-zero |
+</ParamField>
+
+### Using --validate-config in CI
+
+Because `--validate-config` needs no device access, it runs safely in any CI environment or inside a pre-commit hook:
+
+```bash
+# In a shell script or CI pipeline step
+xremap --validate-config ~/.config/xremap/config.yml
+if [ $? -ne 0 ]; then
+  echo "Config validation failed — aborting."
+  exit 1
+fi
+```
+
+```bash
+# As a pre-commit hook (store in .git/hooks/pre-commit)
+#!/usr/bin/env bash
+xremap --validate-config config.yml || exit 1
+```
+
+<Tip>
+  Combine `--validate-config` with `--watch=config` in a two-step workflow: validate in CI, then let the running daemon reload on merge. If validation passes in CI you can be confident the reload will succeed too.
+</Tip>
+
+---
+
+## config_watch_debounce_ms
+
+The `config_watch_debounce_ms` key in your configuration file controls how long xremap waits after detecting a file-system change before reloading the config. This prevents partial reloads when your editor writes a file in multiple chunks.
+
+```yaml
+# config.yml
+config_watch_debounce_ms: 500   # wait 500 ms after last change before reloading
+
+modmap:
+  - remap:
+      CapsLock: Esc
+```
+
+This option only has an effect when xremap is running with `--watch=config`. See the [Configuration Options](/configuration/options) reference for the default value and all other top-level config keys.
+
+---
+
+## --allow-launch
+
+<ParamField path="--allow-launch" type="true | false">
+  Controls whether remapping rules that include a `launch` action are allowed to execute programs. Added in **v0.15.1**.
+
+  ```bash
+  # Explicitly permit launch actions
+  xremap --allow-launch true config.yml
+
+  # Explicitly deny launch actions
+  xremap --allow-launch false config.yml
+  ```
+
+  <Warning>
+    The default behaviour is intentionally ambiguous between the normal startup path and the `--bridge` mode. If your config uses `launch` actions, always set `--allow-launch` explicitly to avoid unexpected behaviour across different invocation methods.
+  </Warning>
+
+  When xremap is started with `--bridge`, `--allow-launch` defaults to `false` (deny). When started normally (without `--bridge`), it defaults to `true` (allow). Explicitly passing the flag overrides both defaults.
+</ParamField>

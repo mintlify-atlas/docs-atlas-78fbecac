@@ -1,0 +1,135 @@
+---
+title: "Key Sequence Remapping in xremap"
+sidebarTitle: "Key Sequences"
+description: "Remap multi-key sequences like Emacs-style C-x C-c in xremap using nested remap with optional timeout and timeout_key fallbacks."
+---
+
+Key sequences let you bind actions to **multi-key combinations pressed in order** — for example, Emacs-style `C-x C-c` to quit, or `C-x C-s` to save. In xremap, sequences are created by nesting a `remap` keyword inside a key binding's value. This page explains the syntax, timing options, and practical patterns for using key sequences in your configuration.
+
+## How Key Sequences Work
+
+When xremap encounters a nested `remap` under a key binding, pressing that key puts xremap into a **temporary remap state**. The next key event is matched against the nested remap. If it matches, the bound action fires. If it does not match, the temporary remap is cancelled and the unmatched key is processed normally.
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-X:
+        remap:
+          Ctrl-Q: Esc
+```
+
+In this example: pressing `Ctrl-X` arms the sequence. Then pressing `Ctrl-Q` emits `Esc`. Any other key cancels the sequence.
+
+---
+
+## Syntax Reference
+
+<ParamField path="remap" type="Object" required>
+  A nested mapping of key combos to actions. Takes the same data as a top-level `remap` block — any valid keymap action can be used as a value.
+</ParamField>
+
+<ParamField path="timeout_millis" type="Number">
+  How many milliseconds to wait for the second key before timing out. If no key is pressed within this window, the sequence is cancelled and the `timeout_key` (if specified) is emitted. **No timeout by default** — xremap waits indefinitely.
+</ParamField>
+
+<ParamField path="timeout_key" type="Key | Key[]">
+  Key or list of keys to emit after the sequence times out. Optional; nothing is emitted on timeout by default. Can be an array to emit multiple keys.
+</ParamField>
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-X:
+        timeout_millis: 200         # Wait up to 200ms for the next key
+        timeout_key: Ctrl-X         # Re-emit Ctrl-X if it times out
+        remap:
+          Ctrl-Q: { action: exit }
+          Ctrl-C: { action: exit }
+          Ctrl-S: { launch: ["notify-send", "Saved"] }
+          Ctrl-F: { launch: ["rofi", "-show", "filebrowser"] }
+```
+
+---
+
+## Arbitrarily Deep Nesting
+
+Sequences can be nested to any depth, enabling full Emacs-style multi-chord bindings:
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-X:
+        remap:
+          Ctrl-C: { action: exit }     # C-x C-c
+          Ctrl-S: { launch: ["save"] } # C-x C-s
+          Ctrl-X:
+            remap:
+              Ctrl-E: { launch: ["emacsclient", "-c"] }  # C-x C-x C-e
+```
+
+---
+
+## Practical Examples
+
+### Emacs-Style Quit
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-X:
+        timeout_millis: 300
+        remap:
+          Ctrl-C: { action: exit }
+```
+
+### xremap Reload Sequence
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-X:
+        timeout_millis: 200
+        remap:
+          Ctrl-R: { action: reload_config }
+```
+
+### Window Management Prefix
+
+```yaml
+keymap:
+  - remap:
+      Super-W:
+        timeout_millis: 500
+        timeout_key: Super-W    # Pass through Super-W if no second key pressed
+        remap:
+          H: { launch: ["wmctrl", "-r", ":ACTIVE:", "-e", "0,0,0,-1,-1"] }
+          L: { launch: ["wmctrl", "-r", ":ACTIVE:", "-e", "0,960,0,-1,-1"] }
+```
+
+### Fixing a Bouncy Spacebar
+
+A common use for `timeout_key` and `timeout_millis` is debouncing a spacebar that registers double-presses:
+
+```yaml
+keymap:
+  - remap:
+      space:
+        remap:
+          space: null          # Swallow the second space press
+        timeout_key: space     # After timeout, emit a normal space
+        timeout_millis: 150    # 150ms debounce window
+```
+
+This pattern works as follows: the first space arms the sequence. If another `space` arrives within 150 ms, it is swallowed (mapped to `null`). If no second space arrives before the timeout, a regular space is emitted via `timeout_key`.
+
+<Tip>
+The `timeout_key` value is emitted whether the sequence times out naturally or when an unmapped key cancels it. Set `timeout_key` to the same key as the trigger to get transparent pass-through behavior when no second key is pressed.
+</Tip>
+
+---
+
+## Notes on Sequence Timing
+
+- **No default timeout** — without `timeout_millis`, xremap waits forever for the second key. This is fine for intentional sequences like `C-x C-c`, but may feel unresponsive for keys you also want to use normally.
+- **Nested remaps inherit the same action types** — you can use `launch`, `set_mode`, `sleep`, or any other [keymap action](/reference/keymap-actions) as values in a nested `remap`.
+- **The trigger key is consumed** — the key that arms a sequence is not emitted on its own. Use `timeout_key` if you want it back on timeout.

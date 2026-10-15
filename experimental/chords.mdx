@@ -1,0 +1,135 @@
+---
+title: "Chord (Simultaneous Key) Remapping in xremap"
+sidebarTitle: "Chords"
+description: "Remap simultaneous key presses (chords) in xremap. Configure key combinations, timeout windows, and actions using the experimental_map section."
+---
+
+Chords let you trigger an action by pressing multiple keys at the same time — like playing a chord on a piano. If all the specified keys are pressed within a configurable timeout window, the mapped action fires instead of the individual keys. This opens up a large number of new bindings without permanently reassigning any single key.
+
+<Warning>
+  Chords live in the `experimental_map` configuration section. Experimental features may have **breaking changes in any version update** of xremap. Changes will be noted in `CHANGELOG.md`. Features available in `modmap` — such as `device`, `mode`, key-to-key mapping, multi-purpose key, and press/release — do **not** work inside `experimental_map`. Application-specific remapping via `application` and `window` works since **v0.15.5**.
+</Warning>
+
+Working since **v0.14.18**.
+
+## How It Works
+
+When the first trigger key is pressed, xremap starts buffering all key events until the timeout expires or all chord keys have been pressed:
+
+- If all chord keys are pressed **within the timeout**, the action fires. The trigger keys are **fully suppressed** — they are neither pressed nor released on their own.
+- If the chord is **not completed** in time, the buffered key events pass through normally as individual key presses.
+- While **all trigger keys are held**, the action repeats.
+- When **any one trigger key is released**, the action is released.
+
+The output of `experimental_map` is passed through `modmap` and then to `keymap`, so further remapping in those sections still applies.
+
+<Note>
+  Chords work independently of other keys held at the time. You can hold a modifier while pressing a chord and it will behave as expected.
+</Note>
+
+## Syntax
+
+```yaml
+experimental_map:
+  - chords:
+      - keys: [KEY1, KEY2]
+        actions: ACTION
+        timeout: 30  # Optional. Default is 30ms.
+```
+
+The `timeout` field is optional and defaults to `30` milliseconds. The `actions` field follows the same rules as other `experimental_map` actions — you can emit nothing, a single key, or a list of keys.
+
+## Possible Actions
+
+Chord actions follow the same rules as all `experimental_map` actions. You can emit nothing, a single key, or a list of keys. All keys in the action are pressed when the chord is confirmed, and released in the same order when the chord is released.
+
+```yaml
+experimental_map:
+  - chords:
+      - keys: [f11, f12]
+        actions: null        # No action
+      - keys: [f9, f10]
+        actions: A           # Single key
+      - keys: [f7, f8]
+        actions: [A, B, C]   # Multiple keys pressed in order
+```
+
+## Examples
+
+### Basic chord: F11 + F12 → A
+
+When `F11` and `F12` are pressed at the same time, emit `A`:
+
+```yaml
+experimental_map:
+  - chords:
+      - keys: [f11, f12]
+        actions: A
+        timeout: 30  # Optional. Default is 30ms.
+```
+
+### Modifier chord
+
+Including a modifier key in a chord greatly reduces accidental activation. You can safely use a higher timeout because modifier combos are intentional and deliberate:
+
+```yaml
+experimental_map:
+  - chords:
+      - keys: [LeftCtrl, K]
+        actions: A
+        timeout: 50  # Higher timeout is safe when using modifier keys.
+```
+
+Pressing `LeftCtrl` and `K` simultaneously will emit `A`.
+
+### Modifier action
+
+A chord can emit modifier keys as its action, enabling keyboard combinations like `Ctrl+V`:
+
+```yaml
+experimental_map:
+  - chords:
+      - keys: [f11, f12]
+        actions: [LeftCtrl, V]
+```
+
+### Homerow mods style (S + D → LeftShift)
+
+For typing-style chords, a very short timeout is needed to avoid accidental triggers during fast typing:
+
+```yaml
+experimental_map:
+  - chords:
+      - keys: [S, D]
+        actions: LeftShift
+        timeout: 10  # Short timeout to allow for fast typing
+      - keys: [K, L]
+        actions: LeftShift
+        timeout: 10  # Short timeout to allow for fast typing
+```
+
+<Tip>
+  When choosing keys for chords used during typing, look for letter combinations that are uncommon in your language. For example, `odt` appears in "good" and "food", making `O`, `D`, and `T` risky choices. Uncommon sequences reduce accidental activation.
+</Tip>
+
+## Limitations
+
+<Warning>
+  **Typing keys with small timeouts** can accidentally trigger chords during normal typing if two keys happen to be pressed close together. Prefer modifier keys or function keys when possible, since they are pressed more deliberately.
+</Warning>
+
+<Note>
+  **N-key rollover limits**: Some keyboards restrict how many simultaneous key presses they can detect. Certain combinations may produce no output at all. Check your keyboard's specification if chords involving many keys do not register.
+</Note>
+
+## `experimental_map` Restrictions
+
+The following features from `modmap` are **not available** inside `experimental_map`:
+
+- `device` filtering
+- `mode` switching
+- Key-to-key mapping
+- Multi-purpose key (`held`/`alone`)
+- `press`/`release` event handling
+
+`application` and `window` context matching **do** work since v0.15.5.

@@ -1,0 +1,208 @@
+---
+title: "Run xremap as a systemd System Service"
+sidebarTitle: "System Service"
+description: "Configure xremap as a systemd system service that starts at boot. Includes socket feature setup for app-specific remapping."
+---
+
+Running xremap as a systemd system service is the most secure way to operate it. The service starts at boot (before any user logs in), runs under a dedicated `xremap` system user with minimal privileges, and restarts automatically on failure. These instructions apply to xremap **v0.15.13 and later**. If you were previously using two separate binaries for the socket and bridge features, remember to pass `--desktop=socket` in the service's `ExecStart` — the socket feature can no longer be auto-detected.
+
+## Pros and cons
+
+**Pros**
+- Starts at boot, independent of any user session.
+- Most secure setup — xremap runs as a dedicated system user with no home directory or login shell.
+- Restarts automatically on failure.
+
+**Cons**
+- One config file is shared across all users on the machine.
+- The config is owned by the `xremap` system user, making it slightly inconvenient to edit.
+- Programs launched by xremap key bindings run as the `xremap` user, not as your personal user (unless you enable the socket feature).
+- Application-specific remapping requires the optional socket feature described below.
+
+---
+
+## Socket feature (optional)
+
+The socket feature lets the system service delegate desktop-integration queries (active window, etc.) to a second xremap instance running as your normal user. Without it, application-specific remapping is not available.
+
+To use the socket feature, install the **`full`** variant of xremap. On the [Releases page](https://github.com/xremap/xremap/releases), look for an archive named like `xremap-linux-x86_64-full.zip`. If you do not need application-specific remapping you can use any variant.
+
+---
+
+## Step-by-step setup
+
+<Steps>
+
+<Step title="Create a dedicated system user">
+  Create a system user named `xremap` with no home directory and no login shell:
+
+  ```bash
+  sudo useradd --no-create-home --shell /bin/false \
+               --user-group --groups input --system xremap
+  ```
+
+  <Warning>
+    The `xremap` user should be used exclusively for this service. Do not add your own account to the `xremap` group — doing so would undermine the security separation.
+  </Warning>
+</Step>
+
+<Step title="Place your config file">
+  Create a directory for the configuration and copy your config into it:
+
+  ```bash
+  sudo mkdir -p /etc/xremap
+  # Copy your existing config
+  sudo cp config.yml /etc/xremap/config.yml
+  # Set ownership so the xremap user can read it
+  sudo chown xremap:xremap /etc/xremap/config.yml
+  sudo chmod 644 /etc/xremap/config.yml
+  ```
+</Step>
+
+<Step title="Create per-user groups for the socket feature (optional)">
+  Skip this step if you do not need application-specific remapping.
+
+  Create one system group per user that will use xremap's socket feature, then add each user to their group:
+
+  ```bash
+  # Create a group for each user
+  sudo groupadd --system xremap-username1
+  sudo groupadd --system xremap-username2
+
+  # Add each user to their group
+  sudo usermod --append --groups xremap-username1 username1
+  sudo usermod --append --groups xremap-username2 username2
+  ```
+
+  <Note>
+    Group changes require a restart to take effect. xremap will be active for all users regardless, but application-specific remapping only works for users who have a corresponding `xremap-username` group.
+  </Note>
+</Step>
+
+<Step title="Create the systemd service file">
+  Create `/etc/systemd/system/xremap.service` with the following content:
+
+  ```ini
+  [Unit]
+  Description=Xremap
+  After=default.target
+
+  [Service]
+  ExecStart=/usr/bin/xremap --desktop=socket --watch=device /etc/xremap/config.yml
+  Restart=always
+  StandardOutput=journal
+  StandardError=journal
+  User=xremap
+  Group=xremap
+  SupplementaryGroups=input
+  RuntimeDirectory=xremap
+  RuntimeDirectoryMode=0755
+  RuntimeDirectoryPreserve=yes
+  Environment=RUST_LOG=warn # The default logging level
+
+  # Uncomment the following lines for the socket variant.
+  # Remember to enter the right username and their corresponding uid.
+  # To get the uid of the current user run "id" in the terminal,
+  # and `sudo -u username id` for other users.
+  #ExecStartPre=install --directory --mode 2770 --owner xremap --group xremap-username1 /run/xremap/uid
+  #SupplementaryGroups=xremap-username1
+  #ExecStartPre=install --directory --mode 2770 --owner xremap --group xremap-username2 /run/xremap/uid
+  #SupplementaryGroups=xremap-username2
+
+  [Install]
+  WantedBy=default.target
+  ```
+
+  Adjust the `ExecStart` arguments to suit your setup. In particular, consider whether you want `--desktop=none` (no desktop integration), `--desktop=socket` (socket feature for app-specific remapping), or another value.
+</Step>
+
+<Step title="Start the service">
+  ```bash
+  sudo systemctl start xremap.service
+  ```
+</Step>
+
+<Step title="Enable the service at boot">
+  ```bash
+  sudo systemctl enable xremap.service
+  ```
+</Step>
+
+</Steps>
+
+---
+
+## Reload after changing the service file
+
+Whenever you edit `xremap.service`, reload the unit definitions and restart the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart xremap.service
+```
+
+---
+
+## View status and logs
+
+```bash
+# Current service status
+sudo systemctl status xremap.service
+
+# Follow the live log stream
+sudo journalctl -fu xremap.service
+```
+
+---
+
+## Application-specific remapping (socket feature)
+
+The socket feature requires the `full` variant of xremap and a second xremap instance running in your user session.
+
+### GNOME
+
+The GNOME Shell extension acts as the second xremap instance. Install version 12 or later of the [xremap GNOME Shell extension](https://extensions.gnome.org/extension/5060/xremap/).
+
+<Note>
+  If the GNOME extension starts before the system service has run at least once since boot, the socket directory will not exist yet. Log out and back in after the service has started for the first time.
+</Note>
+
+The extension connects to the socket at `/run/xremap/{uid}/xremap.sock` by default. You can override the path:
+
+- **For the system service:** set `XREMAP_SOCKET` in `/etc/systemd/system/xremap.service` under `[Service]`.
+- **For the GNOME extension:** set `XREMAP_GNOME_SOCKET` in `~/.config/environment.d/99-xremap.conf` or `/etc/environment.d/90-xremap.conf`.
+
+### Other desktops
+
+For all desktops other than GNOME, start the bridge as your normal user:
+
+```bash
+xremap --bridge
+```
+
+The bridge accepts a small set of arguments:
+
+```bash
+xremap --no-window-logging \
+       --allow-launch="true or false" \
+       --desktop="kde,gnome,...,auto or none" \
+       --bridge
+```
+
+<Tip>
+  Run the bridge as a user service or XDG autostart entry so it starts automatically with your session. See [Running as a user service](./user-service) for a template you can adapt.
+</Tip>
+
+The bridge only supports the default socket path `/run/xremap/{uid}/xremap.sock` and cannot be overridden.
+
+---
+
+## How the socket feature works
+
+When the system service starts xremap with the `socket` variant, it creates a per-user directory — for example `/run/xremap/1000` — that is accessible only to the `xremap` service user and the user with that UID.
+
+When your GNOME extension or bridge starts, it creates a Unix socket inside that directory. The system service then connects to the socket to query the active window and to launch programs in your session context. The system service also monitors which user is currently controlling input devices to ensure it sends queries to the correct session.
+
+<Note>
+  The service must have run at least once since the last system boot before the per-user directories are created. If you installed the service and immediately try to start the bridge or extension, log out and back in after the service has started successfully.
+</Note>

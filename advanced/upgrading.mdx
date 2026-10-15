@@ -1,0 +1,166 @@
+---
+title: "Upgrade Guide: Migrating to xremap v0.15"
+sidebarTitle: "Upgrading"
+description: "Migrate your xremap configuration to v0.15. Covers breaking changes to multipurpose key interruption and relative mouse event handling."
+---
+
+xremap v0.15 introduces two breaking changes to how certain key and mouse events are handled. Most configurations will need no changes at all, but if you use multipurpose keys with mouse events or relative mouse events (scroll/cursor) inside `modmap`, you will need to update your config. This guide explains each change and shows concrete before-and-after examples.
+
+## Change 1: Multipurpose key interruption
+
+<Warning>
+  **Breaking change.** Mouse move events no longer interrupt multipurpose keys by default. If your configuration relied on this behaviour, you must opt back in explicitly.
+</Warning>
+
+In previous versions, any mouse movement would interrupt (resolve) a held multipurpose key. This was rarely intentional — moving the mouse while holding a key that has both `alone` and `held` actions is a common accident, not a deliberate chord.
+
+In v0.15, **mouse move events no longer interrupt multipurpose keys** unless you explicitly set `interruptable: true`. Mouse scroll events still interrupt multipurpose keys by default.
+
+**No action required** if you do not use multipurpose keys, or if your multipurpose keys are only triggered by other keyboard keys.
+
+**Opt back in** by adding `interruptable: true` to any multipurpose key definition that should still be interrupted by mouse move:
+
+```yaml
+modmap:
+  - remap:
+      Capslock:
+        alone: KEY_A
+        held: KEY_B
+        interruptable: true  # Restore the old behaviour for this key
+```
+
+## Change 2: Relative mouse events moved out of modmap
+
+<Warning>
+  **Breaking change.** Relative mouse events (`XRightScroll`, `XLeftScroll`, `XUpScroll`, `XDownScroll`, `XRightCursor`, `XLeftCursor`, `XDownCursor`, `XUpCursor`) can no longer be placed inside `modmap`. Move them to `keymap`.
+</Warning>
+
+Relative mouse events can be remapped even though they are not real keys. Previously they could appear in either `modmap` or `keymap`, but they did not make sense semantically in `modmap`. To simplify the codebase and make future development easier, v0.15 restricts them to `keymap` only.
+
+The affected events are:
+
+- **Scroll:** `XRightScroll`, `XLeftScroll`, `XUpScroll`, `XDownScroll`
+- **Cursor move:** `XRightCursor`, `XLeftCursor`, `XDownCursor`, `XUpCursor`
+
+### Migration examples
+
+#### Turning a mouse event into a key press
+
+This is the most common pattern. Simply replace `modmap` with `keymap`:
+
+**Before (v0.14):**
+
+```yaml
+modmap:
+  - remap:
+      XUpScroll: KEY_A
+      # Mouse move right
+      XRightCursor: KEY_B
+```
+
+**After (v0.15):**
+
+```yaml
+keymap:
+  - remap:
+      XUpScroll: KEY_A
+      XRightCursor: KEY_B
+```
+
+#### Launching a command when scrolling
+
+If you used `skip_key_event: false` (emit the scroll event *and* run the command), there is no direct replacement in v0.15. The `keymap` section cannot emit relative mouse events, and there is no equivalent of `skip_key_event` in `keymap`.
+
+**Before (v0.14) — no direct migration path:**
+
+```yaml
+modmap:
+  - remap:
+      XDownScroll:
+        press: { launch: [bash, -c, "echo hello >> /home/USER_NAME/test_file"] }
+        skip_key_event: false
+```
+
+If you used `skip_key_event: true` (run the command and *suppress* the scroll), a `keymap` rule works as a replacement:
+
+**Before (v0.14) — `skip_key_event: true`:**
+
+```yaml
+modmap:
+  - remap:
+      XDownScroll:
+        press: { launch: [bash, -c, "echo hello >> /home/USER_NAME/test_file"] }
+        skip_key_event: true
+```
+
+**After (v0.15):**
+
+```yaml
+keymap:
+  - remap:
+      XDownScroll: { launch: [bash, -c, "echo hello >> /home/USER_NAME/test_file"] }
+```
+
+#### Chaining modmap and keymap on the same mouse event
+
+If you previously remapped a mouse event in `modmap` and then used that remapped key in `keymap`, you can collapse both rules into a single `keymap` entry:
+
+**Before (v0.14):**
+
+```yaml
+modmap:
+  - remap:
+      XUpScroll: C
+keymap:
+  - remap:
+      C: D
+```
+
+**After (v0.15):**
+
+```yaml
+keymap:
+  - remap:
+      XUpScroll: D
+```
+
+#### Multipurpose key interrupted by mouse move
+
+Add `interruptable: true` to the multipurpose key definition to restore the previous behaviour:
+
+**Before (v0.14 — implicit behaviour):**
+
+```yaml
+modmap:
+  - remap:
+      Capslock:
+        alone: KEY_A
+        held: KEY_B
+```
+
+**After (v0.15 — explicit opt-in):**
+
+```yaml
+modmap:
+  - remap:
+      Capslock:
+        alone: KEY_A
+        held: KEY_B
+        interruptable: true
+```
+
+#### Multipurpose key mapped to a mouse event
+
+<Warning>
+  This pattern has little practical value in v0.15. Because the mouse event is a relative event, its release fires immediately — meaning the `alone` action is always emitted and the `held` action is never reachable.
+</Warning>
+
+```yaml
+modmap:
+  - remap:
+      XUpScroll:
+        alone: KEY_A
+        held: KEY_B
+```
+
+If you have a config that looks like this, consider replacing it with a simple `keymap` remap as shown in the [turning a mouse event into a key press](#turning-a-mouse-event-into-a-key-press) example above.

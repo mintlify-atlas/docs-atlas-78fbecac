@@ -1,0 +1,198 @@
+---
+title: "Mode-Based Conditional Remapping in xremap"
+sidebarTitle: "Modes"
+description: "Use xremap modes to enable or disable groups of remappings dynamically. Define named modes and switch between them with set_mode actions."
+---
+
+xremap's mode system lets you dynamically switch between **named sets of remappings**. At any point in time xremap is in exactly one mode. Modmap and keymap entries tagged with a `mode` field are only active when the current mode matches; entries with no `mode` field are always active. This makes it possible to build modal editing schemes, gaming toggles, application-specific macro layers, and anything else that requires remappings to be turned on or off at runtime.
+
+## Default mode
+
+When xremap starts, the active mode is `"default"` unless you override it with the top-level `default_mode` option:
+
+```yaml
+default_mode: my_start_mode   # Optional. Defaults to "default"
+```
+
+Any entry that has no `mode` field is treated as if it matches **every** mode, including modes you define yourself.
+
+## Assigning modes to entries
+
+Add a `mode` key to any `modmap` or `keymap` entry. Its value can be a single mode name (string) or a list of mode names:
+
+```yaml
+modmap:
+  - name: Only active in "gaming" mode
+    mode: gaming
+    remap:
+      W: Up
+      A: Left
+      S: Down
+      D: Right
+
+keymap:
+  - name: Active in either "edit" or "select" mode
+    mode: [edit, select]
+    remap:
+      Ctrl-N: Down
+      Ctrl-P: Up
+```
+
+Entries with **no** `mode` field are always active regardless of the current mode.
+
+## Switching modes
+
+### From a keymap action
+
+Use the `set_mode` action in any `keymap` entry to switch the active mode:
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-U: { set_mode: Up }
+      Ctrl-I: { set_mode: Down }
+      Ctrl-O: { set_mode: Up_And_Down }
+      Ctrl-P: { set_mode: Right_And_Left }
+```
+
+### From a modmap press/release action
+
+The `modmap` section can also switch modes via the `press` and `release` keys of a press/release remap:
+
+```yaml
+modmap:
+  - name: Turn off with L key
+    remap:
+      L:
+        press: { set_mode: Off }
+        release:                    # No action on release
+```
+
+## Full mode example
+
+The following example (adapted directly from the README) builds a directional movement system controlled by CTRL combos. The `default_mode` is set to `Up_And_Down` so movement starts enabled:
+
+```yaml
+default_mode: Up_And_Down
+
+modmap:
+  - name: Up
+    remap:
+      W: Up
+    mode: [Up, Up_And_Down]   # Active in "Up" and "Up_And_Down" modes
+
+  - name: Down
+    remap:
+      S: Down
+    mode: [Down, Up_And_Down]
+
+  - name: Right_And_Left
+    remap:
+      D: Right
+      A: Left
+    mode: Right_And_Left       # Mode can also be a plain string
+
+  - name: Turn Off
+    remap:
+      L:
+        press: { set_mode: Off }
+        release:
+    # No mode field → always active; use L to switch to "Off" from any mode
+
+keymap:
+  - name: Mode switcher
+    remap:
+      Ctrl-U: { set_mode: Up }
+      Ctrl-I: { set_mode: Down }
+      Ctrl-O: { set_mode: Up_And_Down }
+      Ctrl-P: { set_mode: Right_And_Left }
+    mode: [Up, Down, Right_And_Left, Up_And_Down, Off]
+    # This keymap is active in all named modes so the user can always switch
+```
+
+In this configuration:
+- **Default state**: `Up_And_Down` mode — W maps to Up, S maps to Down.
+- **Ctrl-U**: switches to `Up` mode — only W is remapped.
+- **Ctrl-I**: switches to `Down` mode — only S is remapped.
+- **Ctrl-P**: switches to `Right_And_Left` mode — D and A are remapped.
+- **L key**: switches to `Off` mode — no directional remapping is active.
+- The mode-switching keymap itself (`Ctrl-U`, `Ctrl-I`, etc.) is active in all five named modes.
+
+## Use cases
+
+### Vim-like modal editing
+
+```yaml
+default_mode: normal
+
+modmap:
+  - name: Normal mode — hjkl navigation
+    mode: normal
+    remap:
+      H: Left
+      J: Down
+      K: Up
+      L: Right
+
+keymap:
+  - name: Enter insert mode with I
+    mode: normal
+    remap:
+      I: { set_mode: insert }
+
+  - name: Return to normal mode with Escape
+    mode: insert
+    remap:
+      Esc: { set_mode: normal }
+```
+
+### Gaming toggle
+
+```yaml
+default_mode: default
+
+keymap:
+  - name: Toggle gaming mode on/off
+    remap:
+      F12: { set_mode: gaming }
+
+  - name: Exit gaming mode
+    mode: gaming
+    remap:
+      F12: { set_mode: default }
+
+modmap:
+  - name: Gaming — WASD movement
+    mode: gaming
+    remap:
+      W: Up
+      A: Left
+      S: Down
+      D: Right
+```
+
+### Application-specific macro mode
+
+```yaml
+keymap:
+  - name: Enter macro layer
+    application:
+      only: [Blender]
+    remap:
+      CapsLock: { set_mode: blender_macros }
+
+  - name: Blender macro layer
+    mode: blender_macros
+    remap:
+      G: { launch: ["notify-send", "Grab"] }
+      R: { launch: ["notify-send", "Rotate"] }
+      Esc: { set_mode: default }
+```
+
+<Tip>
+  Mode names are arbitrary strings — choose names that are meaningful to you. There is no limit on the number of modes you can define.
+</Tip>
+
+<Note>
+  Entries with no `mode` field are **always active**, regardless of the current mode. This means your mode-switching keymap entries (e.g. the `set_mode` bindings) typically should not have a `mode` field, or should list every mode in which switching should be available.
+</Note>

@@ -1,20 +1,79 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "xremap: Dynamic Key Remapper for Linux"
+sidebarTitle: "Home"
+description: "xremap remaps keys on Linux with app-specific rules, key sequences, and Wayland support — all from a single YAML config file."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+xremap is a fast, cross-platform key remapper for Linux. Written in Rust, it works with both X11 and Wayland and supports powerful features like application-specific remapping, key sequences, multi-purpose keys, and virtual modifiers — all defined in a simple YAML configuration file.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Learn what xremap does, how it works, and what makes it different from xmodmap.
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install xremap from AUR, Nix flake, release binaries, or build from source.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Write your first config file and remap your first key in under five minutes.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Every command-line flag and option for the xremap binary.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## Why xremap?
+
+<CardGroup cols={3}>
+  <Card title="Cross-platform" icon="display">
+    Works on X11 and all major Wayland compositors — GNOME, KDE, Hyprland, Sway, Niri, COSMIC, and Pantheon.
+  </Card>
+  <Card title="App-specific" icon="window">
+    Apply different remappings per application or window title using `application` and `window` filters.
+  </Card>
+  <Card title="Key sequences" icon="keyboard">
+    Remap multi-key sequences like Emacs-style `C-x C-c` to any action.
+  </Card>
+  <Card title="Multi-purpose keys" icon="toggle-on">
+    Make a key act differently when tapped versus held — turn CapsLock into both Esc and Ctrl.
+  </Card>
+  <Card title="Virtual modifiers" icon="layer-group">
+    Designate any key as a modifier without changing its base behavior.
+  </Card>
+  <Card title="Scriptable" icon="code">
+    Extend xremap with custom Rust plugins for logic that config YAML cannot express.
+  </Card>
+</CardGroup>
+
+## Get up and running
+
+<Steps>
+  <Step title="Install xremap">
+    Download a binary from the [releases page](https://github.com/xremap/xremap/releases) or install via your distro's package manager. See [Installation](/installation) for all options.
+  </Step>
+  <Step title="Set up permissions">
+    Run with `sudo`, or add your user to the `input` group for passwordless operation. See [Running without sudo](/running/without-sudo).
+  </Step>
+  <Step title="Write a config file">
+    Create a `config.yml` with `modmap` and `keymap` sections. See the [Quickstart](/quickstart) for a complete working example.
+  </Step>
+  <Step title="Start remapping">
+    Run `xremap config.yml` (or `sudo xremap config.yml`) and your remappings take effect immediately.
+  </Step>
+</Steps>
+
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Configuration Overview" icon="gear" href="/configuration/overview">
+    Understand the structure of `config.yml` and the roles of `modmap`, `keymap`, and `experimental_map`.
+  </Card>
+  <Card title="Running as a Service" icon="server" href="/running/system-service">
+    Set up xremap as a systemd user or system service so it starts automatically on login or boot.
+  </Card>
+  <Card title="Experimental Features" icon="flask" href="/experimental/double-tap">
+    Double tap, chords, oneshot keys, throttle, and the `select` operator.
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/advanced/troubleshooting">
+    Debug common issues including application-specific remapping, permission errors, and slow key events.
+  </Card>
+</CardGroup>

@@ -1,0 +1,159 @@
+---
+title: "xremap: Linux Key Remapper for X11 and Wayland"
+sidebarTitle: "Introduction"
+description: "xremap is a dynamic key remapper for Linux that supports app-specific remapping, key sequences, and both X11 and Wayland desktops."
+---
+
+xremap is a dynamic key remapper for Linux that intercepts keyboard events at the kernel level using `evdev` and re-emits transformed events through `uinput`. Because it operates below the display-server layer, it works identically on X11 and Wayland without any protocol-specific hacks — making it one of the few remappers that travels cleanly across desktop environments.
+
+## How xremap differs from xmodmap
+
+Traditional tools like `xmodmap` work by patching the X server's key-symbol table. That approach has two hard limits: it is X11-only, and the same remapping applies to every application at once. xremap takes a different path.
+
+| | xmodmap | xremap |
+|---|---|---|
+| Protocol support | X11 only | X11 **and** Wayland |
+| App-specific rules | ✗ | ✓ |
+| Key sequences | ✗ | ✓ |
+| Modifier-or-alone logic | ✗ | ✓ |
+| Config format | X resources | JSON-compatible YAML |
+
+xremap reads the active window from your desktop environment (GNOME, KDE, Hyprland, wlroots, Niri, COSMIC, Pantheon …) and applies only the rules that match the current application, so you can have one behaviour in your terminal and a completely different one in your browser.
+
+## Core concepts
+
+A config file is a YAML document (JSON also works) with up to three top-level keys: `modmap`, `keymap`, and `virtual_modifiers`. Understanding how events flow through each layer is the key to writing effective configs.
+
+### Event flow
+
+```
+Physical keyboard
+       │
+       ▼
+  [ modmap ]  ←── key-to-key substitution (runs first)
+       │
+       ▼
+  [ keymap ]  ←── combo / sequence / action dispatch (sees modmap output)
+       │
+       ▼
+  uinput virtual device → applications
+```
+
+Because `modmap` output feeds directly into `keymap`, a single `modmap` entry like `CapsLock → Ctrl_L` automatically makes every `keymap` rule that references `Ctrl` work when you press CapsLock.
+
+### modmap
+
+`modmap` handles **key-to-key** remapping — the same job xmodmap does, but without X11's constraints. Use it to:
+
+- Swap or reassign individual keys (`CapsLock: Esc`)
+- Replace a key with multiple simultaneous keys (`KEY_XXX: [KEY_A, KEY_B]`)
+- Dispatch a **different** key depending on whether the key is held or tapped (`held` / `alone`)
+- Trigger arbitrary actions on press, repeat, and release events
+
+<Note>
+Remapping a key **to** a modifier — for example `CapsLock → Ctrl_L` — must be done in `modmap`. The `keymap` layer treats modifiers specially and will not produce the correct behaviour if you try to assign a modifier there.
+</Note>
+
+### keymap
+
+`keymap` handles **combo and sequence** remapping. It sees the output of `modmap` and lets you:
+
+- Map one key combination to another (`Ctrl-P: Up`)
+- Map a combination to a **sequence** of key presses (`C-k: [Shift-End, BackSpace]`)
+- Build Emacs-style two-stroke sequences (`C-x` then `C-c`)
+- Launch shell commands (`launch: ["notify-send", "hello"]`)
+- Switch named modes to enable or disable entire rule sets
+- Use `exact_match: true` to match only when exactly the listed modifiers are held
+
+### virtual_modifiers (experimental)
+
+`virtual_modifiers` lets you designate a non-modifier key (for example `CapsLock`) as a virtual modifier that can be used in `keymap` combo expressions just like `Ctrl` or `Alt`. This is an experimental feature; consult the reference documentation before relying on it in production configs.
+
+### Application and device filters
+
+Both `modmap` and `keymap` blocks accept optional `application` and `device` filters. xremap evaluates rules top-to-bottom and applies the **first** matching rule, so put specific overrides above generic fallbacks.
+
+```yaml
+keymap:
+  - name: Browser only
+    application:
+      only: [Google-chrome, firefox]
+    remap:
+      Ctrl-L: Ctrl-L   # let the browser handle its own address bar
+
+  - name: Everywhere else
+    remap:
+      Ctrl-P: Up
+      Ctrl-N: Down
+```
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Remap any key" icon="keyboard">
+    Reassign individual keys — including Ctrl, CapsLock, and every function key.
+  </Card>
+  <Card title="Combo → combo" icon="arrow-right-arrow-left">
+    Map any key combination to another combination, even across modifier boundaries.
+  </Card>
+  <Card title="Key sequences" icon="list-ol">
+    Map a key to a **sequence** of keys, or trigger a remap with a two-stroke sequence like Emacs's `C-x C-c`.
+  </Card>
+  <Card title="Held vs. tapped" icon="hand-pointer">
+    Send one key when a key is tapped alone and a different key when it is held down.
+  </Card>
+  <Card title="App-specific remapping" icon="window">
+    Apply rules only when a specific application is focused — even on Wayland.
+  </Card>
+  <Card title="Device-specific remapping" icon="usb">
+    Scope rules to a particular input device by name, path, or vendor/product ID.
+  </Card>
+  <Card title="Auto-detect new devices" icon="plug">
+    Use `--watch` to automatically pick up newly connected keyboards without restarting.
+  </Card>
+  <Card title="Emacs-style remapping" icon="brackets-curly">
+    Full Emacs key emulation including mark mode — see `example/emacs.yml` in the repo.
+  </Card>
+  <Card title="Command execution" icon="terminal">
+    Trigger shell commands on key press or release events using the `launch` action.
+  </Card>
+  <Card title="Virtual modifier keys" icon="key">
+    Promote any key to act as a modifier inside `keymap` combos.
+  </Card>
+  <Card title="Named modes" icon="sliders">
+    Toggle named modes at runtime to switch entire rule sets on or off with a single keystroke.
+  </Card>
+  <Card title="Non-modifier key as modifier" icon="plus">
+    Use a regular key as a virtual modifier for custom chord layouts.
+  </Card>
+</CardGroup>
+
+## Architecture
+
+xremap is written in **Rust**, which means it compiles to a single native binary with no runtime interpreter overhead. The config file is **YAML** with a JSON-compatible schema, so you can generate it programmatically from Ruby, Python, or any other language using the official helper libraries.
+
+xremap integrates with desktop environments through optional Cargo **feature flags** compiled into the binary. The `full` variant (available since v0.15.13) includes all desktop integrations in one binary. Narrower variants are available when binary size matters.
+
+| Feature flag | Desktop / WM |
+|---|---|
+| `gnome` | GNOME Shell (X11 and Wayland) |
+| `x11` | Generic X11 |
+| `hypr` | Hyprland |
+| `kde` | KDE Plasma (X11 and Wayland) |
+| `wlroots` | wlroots-based compositors |
+| `niri` | Niri |
+| `cosmic` | COSMIC |
+| `pantheon` | Pantheon (elementary OS) |
+| `socket` | Unix socket interface |
+| `full` | All of the above |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install xremap from your distro's package manager, a pre-built binary, or compile it from source.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Write your first config and remap CapsLock to Esc in under five minutes.
+  </Card>
+</CardGroup>

@@ -1,0 +1,285 @@
+---
+title: "keymap Actions Reference"
+sidebarTitle: "keymap Actions"
+description: "All xremap actions available in keymap: exit, reload, launch, set_mode, sleep, close_apps, press/release, mark mode, and more."
+---
+
+Actions extend what a key binding can do beyond simply emitting another key. In xremap, actions are available in `keymap` entries and in the `press`/`release` fields of modmap [press/release keys](/reference/press-release-key). They allow you to run programs, change modes, control xremap itself, and more. This page covers every available action with its syntax, arguments, and any version or platform constraints.
+
+## Syntax Overview
+
+Actions come in two forms depending on whether they take an argument:
+
+```yaml
+keymap:
+  - remap:
+      # Without argument — use { action: name }
+      F9: { action: exit }
+
+      # With argument — use { name: argument }
+      F10: { launch: ["notify-send", "Hello"] }
+      F11: { set_mode: my_mode }
+```
+
+Action names are **case-insensitive**.
+
+---
+
+## Actions Without Arguments
+
+These actions are invoked as `{ action: <name> }`.
+
+<ParamField path="exit" type="action">
+  Close xremap gracefully. The process exits cleanly, releasing all captured devices.
+
+  **Added in:** v0.15.10
+
+  ```yaml
+  keymap:
+    - remap:
+        Ctrl-Alt-Q: { action: exit }
+  ```
+</ParamField>
+
+<ParamField path="reload" type="action">
+  Reload the main xremap process. The reload only takes effect if the configuration file is free of errors. For users running xremap as a system service, only that process reloads — the bridge and GNOME extension are not affected.
+
+  **Added in:** v0.15.11
+
+  ```yaml
+  keymap:
+    - remap:
+        F9: { action: reload }
+  ```
+
+  <Note>
+  `reload` restarts the xremap process itself. If you only want to refresh `modmap`, `keymap`, and `virtual_modifiers` without a full restart, use `reload_config` instead.
+  </Note>
+</ParamField>
+
+<ParamField path="reload_config" type="action">
+  Partially reload the configuration, the same way `--watch` does. Replaces `modmap`, `keymap`, and `virtual_modifiers` in the running process. Everything else — including the current `mode` — is left unchanged.
+
+  **Added in:** v0.15.10
+
+  ```yaml
+  keymap:
+    - remap:
+        F8: { action: reload_config }
+  ```
+
+  <Note>
+  Because `reload_config` does not reset the current mode or other runtime state, it is safer than a full `reload` for config tweaks during a live session.
+  </Note>
+</ParamField>
+
+<ParamField path="pop_window_info" type="action">
+  Show a popup containing the window information xremap sees for the currently focused window. Useful for setting up `application` or `window` filters in your config.
+
+  **Added in:** v0.15.10
+
+  ```yaml
+  keymap:
+    - remap:
+        Super-I: { action: pop_window_info }
+  ```
+</ParamField>
+
+<ParamField path="print_window_info" type="action">
+  Print the window information for the currently focused window to standard output.
+
+  **Added in:** v0.15.10
+
+  ```yaml
+  keymap:
+    - remap:
+        Super-Shift-I: { action: print_window_info }
+  ```
+</ParamField>
+
+<ParamField path="print_window_list" type="action">
+  Print a list of all currently open windows to standard output.
+
+  **Added in:** v0.15.10
+
+  <Warning>
+  `print_window_list` is not supported on GNOME Wayland or KDE Wayland.
+  </Warning>
+
+  ```yaml
+  keymap:
+    - remap:
+        Super-L: { action: print_window_list }
+  ```
+</ParamField>
+
+---
+
+## Actions With Arguments
+
+These actions are invoked as `{ <name>: <argument> }`.
+
+<ParamField path="press" type="Key">
+  Send a key **press** event for the given key. Does not send a repeat or release. Useful when you need fine-grained control over individual key events.
+
+  ```yaml
+  keymap:
+    - remap:
+        CapsLock: [{ press: B }, { repeat: B }, { release: B }]
+  ```
+
+  <Note>
+  When emitting individual `press`, `repeat`, and `release` events back-to-back, add a `throttle_ms` setting at the top level to insert a small delay, because actions are sent with no delay between them by default.
+  </Note>
+</ParamField>
+
+<ParamField path="repeat" type="Key">
+  Send a key **repeat** event for the given key.
+
+  ```yaml
+  keymap:
+    - remap:
+        CapsLock: { repeat: B }
+  ```
+</ParamField>
+
+<ParamField path="release" type="Key">
+  Send a key **release** event for the given key.
+
+  ```yaml
+  keymap:
+    - remap:
+        CapsLock: { release: B }
+  ```
+</ParamField>
+
+<ParamField path="launch" type="Vec<String>">
+  Run a command. The process is started and immediately ignored — it does not block key processing. The command is given as a YAML list of strings (program and arguments).
+
+  ```yaml
+  keymap:
+    - remap:
+        CapsLock: { launch: ["notify-send", "Hello World!"] }
+  ```
+
+  <Warning>
+  Holding a key with a `launch` action will trigger repeat events, running the program repeatedly (e.g. every ~50 ms). Consider wrapping it with a `press`-only trigger or using a modmap press/release key if you only want a single invocation.
+  </Warning>
+
+  For multi-line scripts, use YAML block scalars:
+
+  ```yaml
+  keymap:
+    - remap:
+        CapsLock:
+          launch:
+            - "bash"
+            - "-c"
+            - |
+              NAME=`whoami`
+              notify-send "Hello, $NAME"
+  ```
+</ParamField>
+
+<ParamField path="set_mode" type="String">
+  Switch xremap to the named mode. Modes control which `modmap` and `keymap` entries are active. Use `default` to return to the default mode.
+
+  ```yaml
+  keymap:
+    - remap:
+        Ctrl-Alt-G: { set_mode: gaming }
+        Ctrl-Alt-N: { set_mode: default }
+  ```
+</ParamField>
+
+<ParamField path="set_mark" type="Boolean">
+  Enable (`true`) or disable (`false`) Emacs-style mark mode. When mark mode is active, `with_mark` actions automatically add `Shift` to their key combos, allowing selection.
+
+  ```yaml
+  keymap:
+    - remap:
+        Ctrl-Space: { set_mark: true }
+        Ctrl-G: { set_mark: false }
+  ```
+</ParamField>
+
+<ParamField path="with_mark" type="KeyCombo">
+  Emit the given key combo. If mark mode is currently active (set via `set_mark: true`), `Shift` is automatically added to the combo — turning a cursor movement into a text selection.
+
+  ```yaml
+  keymap:
+    - remap:
+        Ctrl-F: { with_mark: Right }    # Right, or Shift-Right in mark mode
+        Ctrl-B: { with_mark: Left }
+        Ctrl-N: { with_mark: Down }
+        Ctrl-P: { with_mark: Up }
+  ```
+</ParamField>
+
+<ParamField path="escape_next_key" type="Boolean">
+  When set to `true`, the next key event is passed through without being remapped by `keymap` (modmap is unaffected). Use `false` to cancel a previously set escape.
+
+  ```yaml
+  keymap:
+    - remap:
+        Ctrl-Q: { escape_next_key: true }
+  ```
+</ParamField>
+
+<ParamField path="sleep" type="Number">
+  Block all key event processing for the given number of milliseconds. Useful when sequencing actions that require a small delay between them.
+
+  **Added in:** v0.10.4
+
+  ```yaml
+  keymap:
+    - remap:
+        CapsLock: { sleep: 10 }
+  ```
+</ParamField>
+
+<ParamField path="close_apps" type="String">
+  Close all applications whose `app_class` exactly matches the given string.
+
+  **Added in:** v0.15.3
+
+  <Warning>
+  `close_apps` is not supported on GNOME Wayland or Pantheon.
+  </Warning>
+
+  ```yaml
+  keymap:
+    - remap:
+        Super-W: { close_apps: "firefox" }
+  ```
+</ParamField>
+
+---
+
+## Combining Multiple Actions
+
+A key can be mapped to a list of actions, which are executed in order:
+
+```yaml
+keymap:
+  - remap:
+      CapsLock:
+        - { launch: ["notify-send", "Switching mode"] }
+        - { set_mode: gaming }
+```
+
+---
+
+## Key Sequence (Remap Action)
+
+The special `remap` action inside a key binding creates a **key sequence** — a temporary nested remap that waits for a second key press. This is described in full on the [Key Sequences](/reference/key-sequences) page.
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-X:
+        timeout_millis: 200
+        remap:
+          Ctrl-C: { action: exit }
+          Ctrl-S: { launch: ["notify-send", "Saved!"] }
+```

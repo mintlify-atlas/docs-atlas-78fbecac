@@ -1,0 +1,209 @@
+---
+title: "Key Names in xremap Configuration"
+sidebarTitle: "Key Names"
+description: "All key naming conventions in xremap: modifier aliases, combo syntax, mouse buttons, scroll keys, numpad, and how to find unknown key names."
+---
+
+xremap uses Linux evdev key names throughout its configuration, with a set of built-in aliases and conventions that make configs easier to write and read. All key names are **case-insensitive**, the `KEY_` prefix is optional, and several human-friendly aliases exist for common modifier keys. Understanding these naming rules is essential before writing any `modmap` or `keymap` configuration.
+
+## Ordinary Keys
+
+The complete list of available key names comes from the underlying evdev library. You can browse all available names at the [evdev scancodes reference](https://github.com/emberian/evdev/blob/1d020f11b283b0648427a2844b6b980f1a268221/src/scancodes.rs#L26-L572).
+
+Because `KEY_` is optional and names are case-insensitive, the following are all equivalent:
+
+```yaml
+modmap:
+  - remap:
+      KEY_CAPSLOCK: Esc   # Full prefix, uppercase
+      capslock: Esc       # No prefix, lowercase
+      CapsLock: Esc       # No prefix, mixed case
+```
+
+### Left and Right Modifier Aliases
+
+xremap provides shorter aliases for the left-side modifier keys. These are xremap-specific names — they do not exist in evdev directly.
+
+| Alias(es) | Original evdev name |
+|---|---|
+| `CONTROL_L`, `CTRL_L`, `C_L` | `KEY_LEFTCTRL` |
+| `SHIFT_L`, `S_L` | `KEY_LEFTSHIFT` |
+| `ALT_L`, `A_L`, `M_L` | `KEY_LEFTALT` |
+| `SUPER_L`, `WINDOWS_L`, `WIN_L`, `W_L` | `KEY_LEFTMETA` |
+
+The corresponding right-side keys use the `_R` suffix (e.g. `CONTROL_R`, `CTRL_R`, `C_R`) and map to `KEY_RIGHTCTRL`, etc.
+
+### Numpad Keys
+
+Numpad keys follow a `KEY_KP` prefix pattern:
+
+```yaml
+keymap:
+  - remap:
+      KEY_KP1: "1"          # Numpad 1
+      KEY_KPDOT: period     # Numpad decimal point
+      KEY_KPASTERISK: A     # Numpad asterisk (*)
+```
+
+### Special Keys
+
+A few keys have unintuitive names worth noting:
+
+| Key | Name to use | Note |
+|---|---|---|
+| Escape | `KEY_ESC` | `KEY_ESCAPE` does **not** work |
+| Left Windows / Super | `KEY_LEFTMETA` | Also aliased as `SUPER_L`, `WIN_L`, etc. |
+| ISO 102nd key | `KEY_102ND` | The extra key near bottom-left on some keyboards |
+| Print Screen | `KEY_SYSRQ` | `KEY_PRINT` also exists but `KEY_SYSRQ` is the physical key |
+
+<Warning>
+`KEY_SCROLLUP` and similar scroll key names exist in evdev but do nothing in xremap. Use the special `XUPSCROLL` / `XDOWNSCROLL` keys described below for scroll wheel matching.
+</Warning>
+
+### Virtual Keys
+
+`BTN_TRIGGER_HAPPY1` through `BTN_TRIGGER_HAPPY40` serve as **virtual keys** — keys that have no physical counterpart and no real effect if emitted to the system. They are useful as intermediaries: emit them from `modmap`, then remap them in `keymap`.
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        held: BTN_TRIGGER_HAPPY1
+        alone: Esc
+
+keymap:
+  - remap:
+      BTN_TRIGGER_HAPPY1: Ctrl_L   # or any complex action
+```
+
+---
+
+## Modifier Combo Keys
+
+When a modifier is written as part of a key combo (e.g. `Ctrl-A`), it matches **both left and right** variants of that modifier by default. The following modifier names are all valid in combo syntax:
+
+| Aliases | Matches |
+|---|---|
+| `CONTROL`, `CTRL`, `C` | Left Ctrl **or** Right Ctrl |
+| `SHIFT`, `S` | Left Shift **or** Right Shift |
+| `ALT`, `A`, `M` | Left Alt **or** Right Alt |
+| `SUPER`, `WINDOWS`, `WIN`, `W` | Left Meta **or** Right Meta |
+
+```yaml
+keymap:
+  - remap:
+      Ctrl-A: Home        # matches Ctrl_L-A and Ctrl_R-A
+      Ctrl_R-C: End       # matches only right Ctrl
+```
+
+---
+
+## Numbers as Values
+
+Numbers used as **values** (the output side of a remap) must be quoted, because bare numbers are parsed as YAML integers:
+
+```yaml
+keymap:
+  - remap:
+      CapsLock: "1"   # ✅ Correct — quoted string
+      CapsLock: 1     # ❌ Wrong — parsed as the integer 1
+```
+
+Numbers used as **keys** (the trigger side) do not need quotes:
+
+```yaml
+keymap:
+  - remap:
+      1: A            # ✅ Fine — key names are always strings in YAML mapping keys
+      CapsLock: C-1   # ✅ Fine — inside a combo string, no quoting needed
+```
+
+---
+
+## Mouse Buttons
+
+Mouse buttons use the `BTN_` prefix, which is **required** (unlike `KEY_`, it cannot be omitted):
+
+```yaml
+modmap:
+  - remap:
+      BTN_LEFT: A
+      BTN_RIGHT: B
+      BTN_MIDDLE: C
+```
+
+Common mouse button names: `BTN_LEFT`, `BTN_RIGHT`, `BTN_MIDDLE`, `BTN_SIDE`, `BTN_EXTRA`.
+
+<Note>
+Mouse button matching requires xremap to be started with the `--mouse` flag so that mouse devices are included.
+</Note>
+
+### Scroll Wheel Keys
+
+Four special keys match scroll events:
+
+| Key | Trigger |
+|---|---|
+| `XUPSCROLL` | Scroll wheel up |
+| `XDOWNSCROLL` | Scroll wheel down |
+| `XRIGHTSCROLL` | Scroll wheel right |
+| `XLEFTSCROLL` | Scroll wheel left |
+
+```yaml
+keymap:
+  - remap:
+      XUPSCROLL: Up       # Remap scroll-up to arrow up
+      XDOWNSCROLL: Down
+```
+
+<Warning>
+Scroll keys can be **matched** as triggers but cannot be **emitted** from xremap. You cannot remap another key to produce a scroll event.
+</Warning>
+
+### Mouse Movement Keys
+
+Mouse cursor movement can also be matched:
+
+| Key | Direction |
+|---|---|
+| `XRIGHTCURSOR` | Cursor moving right |
+| `XLEFTCURSOR` | Cursor moving left |
+| `XDOWNCURSOR` | Cursor moving down |
+| `XUPCURSOR` | Cursor moving up |
+
+These are commonly used with the `interruptable` field in multi-purpose keys to prevent accidental interruptions from mouse movement.
+
+---
+
+## Unknown Keys (by Code)
+
+If a key has no evdev name, it can be referenced by its numeric scan code using the `Code_` prefix:
+
+```yaml
+modmap:
+  - remap:
+      Code_123: A    # Key with scan code 123
+```
+
+---
+
+## Finding Key Names
+
+If you don't know what a key is called, run xremap with debug logging enabled and press the key:
+
+```bash
+RUST_LOG=debug xremap config.yml
+```
+
+xremap will print each key event it receives, including the key name. Add `sudo` if your setup requires it:
+
+```bash
+RUST_LOG=debug sudo xremap config.yml
+```
+
+Look for log lines like:
+```
+DEBUG xremap > key event: KeyEvent { key: KEY_CAPSLOCK, ... }
+```
+
+The name after `key:` is the canonical evdev name you can use in your config (optionally dropping `KEY_`).

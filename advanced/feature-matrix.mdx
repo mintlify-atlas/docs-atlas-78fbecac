@@ -1,0 +1,42 @@
+---
+title: "xremap Feature Support Matrix"
+sidebarTitle: "Feature Matrix"
+description: "Desktop integration and OS compatibility matrix for xremap. Shows which features work on X11, GNOME, Hyprland, KDE, Niri, COSMIC, Linux, and FreeBSD."
+---
+
+xremap supports a range of desktop environments and operating systems, but not every feature is available everywhere. The tables below summarise what works, what is partially supported, and what is not yet possible across the most common configurations.
+
+## Legend
+
+| Symbol | Meaning         |
+| ------ | --------------- |
+| 🟢     | Works           |
+| 🟡     | Partial         |
+| 🔵     | Is possible     |
+| ⚪     | Might be possible |
+| 🔴     | Not possible    |
+
+## Desktop integration
+
+Desktop-specific features rely on the compositor or display server exposing APIs that xremap can query. Support varies by environment.
+
+| Feature | X11 | GNOME Wayland | Hyprland | KDE Wayland | wlroots | Niri | COSMIC | socket | Pantheon |
+| ------- | :-: | :-----------: | :------: | :---------: | :-----: | :--: | :----: | :----: | :------: |
+| notifications | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
+| `print_window_list` and `--list-windows` | 🟢 | 🟡 [1] | 🟢 | 🟡 [1] | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
+| `close_apps` | 🟢 | 🔵 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🔴 |
+
+**[1]** `print_window_list` is not fully supported on GNOME Wayland and KDE Wayland. Use `print_window_info` instead.
+
+## Operating system
+
+Core remapping functionality depends on the OS kernel providing an evdev-compatible input layer.
+
+| Feature | Linux | FreeBSD | OpenBSD / NetBSD |
+| ------- | :---: | :-----: | :--------------: |
+| Standard key remapping | 🟢 | 🟢 | 🔴 [1] |
+| Application-specific remapping | 🟢 | 🟢 | |
+| Watching for new keyboards/mice | 🟢 | 🔵 | |
+| Watching config file | 🟢 | 🔵 | |
+
+**[1]** OpenBSD and NetBSD do not have `evdev` or an equivalent mechanism that would allow xremap to intercept and re-emit key events.

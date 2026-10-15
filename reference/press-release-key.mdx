@@ -1,0 +1,165 @@
+---
+title: "Press/Release Key Actions in modmap"
+sidebarTitle: "Press/Release Key"
+description: "The press/release key feature in modmap triggers keymap actions on press, repeat, and release events. Supports launch, set_mode, sleep, and more."
+---
+
+The press/release key is the only `modmap` feature that can run [keymap actions](/reference/keymap-actions) — commands like `launch`, `set_mode`, `sleep`, and others. It lets you hook into the individual press, repeat, and release events of a key, fire an action at each point, and optionally suppress the key's normal behavior. This makes it possible to trigger notifications on key press, build shift-lock toggles, hold key combos for the duration of a key press, and disable key repeat.
+
+## Configuration Fields
+
+<ParamField path="press" type="Key | KeyCombo | Action | Array | null">
+  Action(s) to perform when the trigger key is **pressed**. The action is emitted as a complete press-and-release pair at the moment of the press event. Accepts a single key, a key combo, a keymap action object, a list of keys/actions, or `null` (no action). Defaults to no action.
+</ParamField>
+
+<ParamField path="repeat" type="Key | KeyCombo | Action | Array | null">
+  Action(s) to perform on each **repeat** event while the trigger is held. Same value types as `press`. Defaults to no action.
+</ParamField>
+
+<ParamField path="release" type="Key | KeyCombo | Action | Array | null">
+  Action(s) to perform when the trigger key is **released**. The action is emitted as a complete press-and-release pair at that moment. Defaults to no action.
+</ParamField>
+
+<ParamField path="skip_key_event" type="Boolean">
+  When `true`, the trigger key's own event is **not** forwarded to `keymap` — it is suppressed entirely. The actions in `press`, `repeat`, and `release` still fire. Defaults to `false`.
+</ParamField>
+
+---
+
+## Behavior and Bypass Rules
+
+Understanding how press/release key actions interact with the rest of xremap is important:
+
+- **Actions bypass `keymap`**: Unlike the output of a regular key-to-key modmap remap (which passes through `keymap`), actions fired from `press`, `repeat`, and `release` are emitted directly to the output device without going through `keymap`. Even key events inside the action list (e.g. `{ press: A }`) bypass keymap.
+- **The trigger key still goes through `keymap`**: Unless `skip_key_event: true`, the original trigger key event is forwarded to `keymap` after the actions fire.
+- **Order matters for side-effects**: `set_mode`, `escape_next_key`, and `mark_set` take effect **before** the trigger key is looked up in `keymap`. This means a mode switch in the press action is visible to `keymap` for the same key event.
+
+<Warning>
+The trigger key goes through `keymap`, but the actions in `press`/`release` do not. If you want the side-effects of a key combo (e.g. `Ctrl-V`) to be remappable in `keymap`, use a key-to-key modmap remap instead.
+</Warning>
+
+---
+
+## Value Types
+
+All three fields (`press`, `repeat`, `release`) accept the same range of values:
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        press: KEY_A                          # Single key
+        release: Ctrl-V                        # Key combo
+        repeat: [KEY_B, KEY_C]                 # List of keys
+        # repeat: []                           # No action (explicit)
+        # repeat: null                         # No action (alternative)
+        # press: [{ sleep: 10 }]              # Single action object in a list
+        # press: [{ press: D }, { release: D }] # Multiple action objects
+```
+
+---
+
+## Examples
+
+### Run a notification on key press
+
+Show a notification each time `KEY_A` is pressed. The normal key behavior of `A` is preserved because `skip_key_event` is not set:
+
+```yaml
+modmap:
+  - remap:
+      A:
+        press: { launch: ["notify-send", "KEY_A pressed"] }
+```
+
+### Shift lock
+
+Lock Shift on so you can type uppercase letters and symbols without holding Shift. Pressing Shift again unlocks it. Uses `set_mode` to track the locked state:
+
+```yaml
+modmap:
+  - mode: LeftShiftLocked
+    remap:
+      LeftShift:
+        skip_key_event: true
+        press:
+          - { release: LeftShift }
+          - { set_mode: default }
+
+  - remap:
+      LeftShift:
+        skip_key_event: true
+        press:
+          - { press: LeftShift }
+          - { set_mode: LeftShiftLocked }
+```
+
+<Note>
+Because pressing Shift normally interrupts it (you hold Shift and type), the normal Shift behavior is not preserved with this pattern. It's designed specifically for a toggle lock, not a pass-through.
+</Note>
+
+### Hold a key combo for the duration of a key press
+
+Emit `Ctrl-V` when CapsLock is pressed and hold it until CapsLock is released. This differs from a `keymap` remap of `CapsLock: Ctrl-V`, where the combo would be pressed and released immediately:
+
+```yaml
+modmap:
+  - remap:
+      CapsLock:
+        press: [{ press: LeftCtrl }, { press: V }]
+        release: [{ release: V }, { release: LeftCtrl }]
+        skip_key_event: true
+```
+
+The release order reverses the press order: `V` is released before `LeftCtrl`, matching how you would manually release a chord.
+
+### Disable key repeat
+
+Emit press and release explicitly, then suppress the trigger's own event on repeat. The key registers once per physical press and never repeats:
+
+```yaml
+modmap:
+  - remap:
+      A:
+        press: { press: A }
+        release: { release: A }
+        skip_key_event: true
+```
+
+<Note>
+This doesn't fully prevent repeat in all cases. The kernel may automatically insert repeat events for the last pressed key. For reliable no-repeat behavior, additional measures may be needed at the system level.
+</Note>
+
+### Set mode on press, unset on release
+
+Switch to a mode while a key is held, and return to default when it is released:
+
+```yaml
+modmap:
+  - remap:
+      F20:
+        skip_key_event: true
+        press: { set_mode: gaming }
+        release: { set_mode: default }
+```
+
+---
+
+## Full Syntax Reference
+
+```yaml
+modmap:
+  - remap:
+      KEY_XXX:
+        skip_key_event: true  # Optional. Suppress trigger key. Default: false.
+        press:    # Optional. Fires on key press. Default: no action.
+          - { press: KEY_YYY }
+          - { launch: ["xdotool", "mousemove", "0", "0"] }
+        repeat:   # Optional. Fires on key repeat. Default: no action.
+          - { repeat: KEY_YYY }
+        release:  # Optional. Fires on key release. Default: no action.
+          - { release: KEY_YYY }
+          - { set_mode: my_mode }
+```
+
+All [keymap actions](/reference/keymap-actions) are supported as values in `press`, `repeat`, and `release`, including `launch`, `set_mode`, `sleep`, `escape_next_key`, `set_mark`, `with_mark`, `close_apps`, and the individual `press`/`repeat`/`release` key event actions.
