@@ -1,7 +1,7 @@
 ---
-title: "Key Sequence Remapping in xremap"
+title: "xremap Key Sequences: Multi-Key Chord Remap Syntax"
 sidebarTitle: "Key Sequences"
-description: "Remap multi-key sequences like Emacs-style C-x C-c in xremap using nested remap with optional timeout and timeout_key fallbacks."
+description: "Bind actions to multi-key sequences like Emacs-style C-x C-c in xremap using nested remap with optional timeout_millis and timeout_key fallbacks."
 ---
 
 Key sequences let you bind actions to **multi-key combinations pressed in order** — for example, Emacs-style `C-x C-c` to quit, or `C-x C-s` to save. In xremap, sequences are created by nesting a `remap` keyword inside a key binding's value. This page explains the syntax, timing options, and practical patterns for using key sequences in your configuration.

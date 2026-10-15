@@ -1,7 +1,7 @@
 ---
-title: "Extend xremap with Rust Plugins"
+title: "Extend xremap with Custom Rust Plugins via the Plugin API"
 sidebarTitle: "Scripting"
-description: "Use xremap as a Rust library to write custom key remapping logic via the Plugin trait. Covers installation, the on_key_event API, and running your project."
+description: "Use xremap as a Rust library to write custom key remapping logic via the Plugin trait. Covers installation, the Plugin API, and running your project."
 ---
 
 xremap's configuration file is intentionally declarative — it defines remapping rules but does not support scripting. If you need custom logic (rate-limiting keys, toggling state, chaining complex conditions), you can use xremap as a **Rust library** and implement its `Plugin` trait directly in your own program. This feature is supported since **v0.15.10**.

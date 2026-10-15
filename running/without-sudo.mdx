@@ -1,7 +1,7 @@
 ---
-title: "Run xremap without sudo"
-sidebarTitle: "Without sudo"
-description: "Configure evdev and uinput permissions to run xremap without sudo. Includes NixOS setup and alternative udev rule configurations."
+title: "Running xremap without sudo: Input Permissions Setup"
+sidebarTitle: "Without Sudo"
+description: "Grant your user evdev and uinput access to run xremap without sudo. Covers input group, udev rules, NixOS config, and reload without rebooting."
 ---
 
 Running xremap without `sudo` means any programs launched through your key bindings run as your normal user, not as root. To make this work you need to grant your user two permissions: read access to input devices (via the `input` group) and write access to the `uinput` device (via a udev rule). Once those are in place, start xremap like any other command:

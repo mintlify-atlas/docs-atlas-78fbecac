@@ -1,7 +1,7 @@
 ---
-title: "Multi-Purpose Key (Tap-Hold) Configuration"
+title: "xremap Multi-Purpose Key: Tap vs Hold Configuration"
 sidebarTitle: "Multi-Purpose Key"
-description: "Configure xremap multi-purpose keys that emit different actions when tapped versus held. Covers tap/hold thresholds, free_hold, and interruptable options."
+description: "Configure multi-purpose keys in xremap that emit different actions when tapped versus held. Covers thresholds, free_hold, and interruptable options."
 ---
 
 A multi-purpose key produces different output depending on how it is used: one action when tapped quickly alone, and a different action when held down or used in combination with another key. This is the `modmap` feature that enables patterns like "CapsLock is Ctrl when held, Esc when tapped" or "Space is Shift when held, Space when tapped." Understanding the timing model is key to getting the behavior you want.
@@ -9,19 +9,19 @@ A multi-purpose key produces different output depending on how it is used: one a
 ## Configuration Fields
 
 <ParamField path="held" type="Key | Key[]" required>
-  The key or keys to emit when the trigger is determined to be in the held state (interrupted by another key press, or held past the timeout). Modifiers in this list are pressed first and released last, so key combos work correctly here.
+  The key or keys to emit when the trigger is determined to be in the held state (interrupted by another key press, or held past the timeout). Modifiers in this list are pressed first and released last, so key combos work correctly here. Also accepted as `hold` (the canonical field name in source).
 </ParamField>
 
 <ParamField path="alone" type="Key | Key[]" required>
-  The key or keys to emit when the trigger is pressed and released alone (without interruption within the timeout window).
+  The key or keys to emit when the trigger is pressed and released alone (without interruption within the timeout window). Also accepted as `tap` (the canonical field name in source).
 </ParamField>
 
 <ParamField path="hold_threshold_millis" type="Number">
-  Milliseconds after the trigger press before switching from **tap-preferred** to **hold-preferred** state. Defaults to `0`, meaning the key is hold-preferred from the moment it is pressed.
+  Milliseconds after the trigger press before switching from **tap-preferred** to **hold-preferred** state. Defaults to `0`, meaning the key is hold-preferred from the moment it is pressed. Also accepted as `held_threshold_millis` (alias).
 </ParamField>
 
 <ParamField path="alone_timeout_millis" type="Number">
-  Milliseconds after which the held action is committed, even if the key is released alone (no other key was pressed). Defaults to `1000`.
+  Milliseconds after which the held action is committed, even if the key is released alone (no other key was pressed). Defaults to `1000`. Also accepted as `tap_timeout_millis` (alias).
 </ParamField>
 
 <ParamField path="free_hold" type="Boolean">
@@ -49,6 +49,8 @@ The multi-purpose key progresses through three timing states after it is pressed
 | `0` → `hold_threshold_millis` | **Tap-preferred** | Emit tap-action immediately, then the interrupting key | Emit tap-action |
 | `hold_threshold_millis` → `alone_timeout_millis` | **Hold-preferred** | Press held-action before interrupting key; release when trigger released | Emit tap-action |
 | `alone_timeout_millis` → `∞` | **Always-hold** | Hold-action was already pressed at timeout | Hold-action was already pressed |
+
+`hold_threshold_millis` is also accepted as `held_threshold_millis`. `alone_timeout_millis` is also accepted as `tap_timeout_millis`. Both names are equivalent aliases.
 
 With the default `hold_threshold_millis: 0`, the key is hold-preferred from the start — pressing any other key while it is held immediately triggers the held action. Increasing `hold_threshold_millis` creates a window at the start where typing quickly won't accidentally trigger the hold action.
 
@@ -121,7 +123,7 @@ modmap:
 ```
 
 <Note>
-`tap` is a synonym for `alone`, and `tap_timeout_millis` is a synonym for `alone_timeout_millis`. Working since v0.14.15.
+`tap` and `hold` are the canonical field names in the xremap source. `alone` is an alias for `tap`, and `held` is an alias for `hold` — both spellings work interchangeably. Working since v0.14.15.
 </Note>
 
 ### Hold-preferred (hold-on-other-key-press)

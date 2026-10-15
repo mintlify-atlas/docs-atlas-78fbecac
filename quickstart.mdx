@@ -1,7 +1,7 @@
 ---
-title: "Get Started with xremap in Minutes"
+title: "xremap Quickstart: Remap Your First Key in Minutes"
 sidebarTitle: "Quickstart"
-description: "Write your first xremap config, remap CapsLock to Esc and Ctrl, and run xremap in five steps with real YAML examples."
+description: "Write your first xremap config to remap CapsLock to Esc and Ctrl, run xremap with sudo or without, and discover key names with debug logging."
 ---
 
 This guide walks you from zero to a working key remapping in five steps. By the end you will have remapped CapsLock to act as Escape when tapped and Control when held, verified the config is valid, and know how to find key names and application identifiers for more advanced rules.
@@ -231,9 +231,10 @@ xremap --validate-config config.yml && sudo xremap config.yml
 | Flag | Purpose |
 |---|---|
 | `--validate-config` | Check config and exit — no devices touched |
-| `--list-windows` | Print open windows with class and title |
+| `--list-windows` | Print open windows with class and title (since v0.15.5) |
 | `--list-devices` | List available input devices |
 | `--device-details` | Show device details including vendor/product IDs |
+| `--list-desktops` | List desktop integrations supported in the current binary variant |
 | `--watch` | Auto-reload on new devices or config changes |
 | `--watch=config` | Reload config file when it changes on disk |
 | `--watch=config,device` | Watch both config and new devices |
@@ -245,7 +246,7 @@ xremap --validate-config config.yml && sudo xremap config.yml
 Now that you have a working config, explore the full configuration reference to learn about key sequences, named modes, command execution, virtual modifier keys, and device-specific rules.
 
 <CardGroup cols={2}>
-  <Card title="Configuration Overview" icon="file-code" href="/configuration">
+  <Card title="Configuration Overview" icon="file-code" href="/configuration/overview">
     Deep dive into every config option — modmap, keymap, modes, actions, and filters.
   </Card>
   <Card title="Introduction" icon="book-open" href="/introduction">

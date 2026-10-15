@@ -1,7 +1,7 @@
 ---
-title: "Install xremap on Linux"
+title: "Installing xremap on Linux: Packages and Source Builds"
 sidebarTitle: "Installation"
-description: "Install xremap from AUR, Nix flake, release binaries, or compile from source. Choose the full variant or a desktop-specific build."
+description: "Install xremap from AUR, NixOS flake, Fedora Copr, Debian apt, release binaries, or build from source with Cargo. Covers all feature variants."
 ---
 
 xremap ships as a single native binary and has no runtime dependencies beyond the Linux kernel's `evdev` and `uinput` interfaces. You can install it from your distribution's package manager, download a pre-built release binary, or compile it from source with Cargo. Since v0.15.13 a `full` variant is available that bundles support for every supported desktop in one binary — no need to pick a variant unless binary size matters.
@@ -106,7 +106,7 @@ cargo install xremap --features socket
 
 | Flag | Enables | Extra dependency |
 |---|---|---|
-| `full` | All of the below | — |
+| `full` | All desktop integrations (see below) | — |
 | `gnome` | GNOME Shell integration via D-Bus | `zbus` |
 | `x11` | X11 window tracking | `x11rb` |
 | `hypr` | Hyprland IPC | `hyprland` |
@@ -116,6 +116,7 @@ cargo install xremap --features socket
 | `cosmic` | COSMIC Wayland protocols | `wayland-client`, `wayland-scanner`, `wayland-backend` |
 | `pantheon` | Pantheon via D-Bus | `zbus` |
 | `socket` | Unix socket bridge | `futures-util`, `zbus` |
+| `udev` | udev-based device discovery | `udev` |
 
 ### From the GitHub repository
 
@@ -158,8 +159,8 @@ Some distributions (Arch, Fedora) load `uinput` automatically when a process ope
 
 After installation you have two options for granting xremap access to `/dev/input/*` and `/dev/uinput`:
 
-- **Run with `sudo`** — the simplest path. See the upstream [running with sudo](https://github.com/xremap/xremap/blob/master/doc/running_with_sudo.md) guide for how to configure passwordless access for just the xremap binary.
-- **Run without `sudo`** — add your user to the `input` group and configure a udev rule to grant write access to `/dev/uinput`. See the [running without sudo](https://github.com/xremap/xremap/blob/master/doc/running_without_sudo.md) guide.
+- **Run with `sudo`** — the simplest path. See [Running with sudo](/running/with-sudo) for how to configure passwordless access for just the xremap binary.
+- **Run without `sudo`** — add your user to the `input` group and configure a udev rule to grant write access to `/dev/uinput`. See [Running without sudo](/running/without-sudo) for the full setup.
 
 <Tip>
 If you manage xremap as a systemd user service, the no-sudo path with a udev rule is the cleanest approach because it avoids embedding `sudo` inside a unit file.

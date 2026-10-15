@@ -1,7 +1,7 @@
 ---
-title: "Key Names in xremap Configuration"
+title: "xremap Key Names: Modifiers, Mouse Buttons, Aliases"
 sidebarTitle: "Key Names"
-description: "All key naming conventions in xremap: modifier aliases, combo syntax, mouse buttons, scroll keys, numpad, and how to find unknown key names."
+description: "Key naming conventions in xremap: modifier aliases, combo syntax, mouse buttons, scroll keys, numpad, virtual keys, and how to find unknown key names."
 ---
 
 xremap uses Linux evdev key names throughout its configuration, with a set of built-in aliases and conventions that make configs easier to write and read. All key names are **case-insensitive**, the `KEY_` prefix is optional, and several human-friendly aliases exist for common modifier keys. Understanding these naming rules is essential before writing any `modmap` or `keymap` configuration.
@@ -202,7 +202,7 @@ RUST_LOG=debug sudo xremap config.yml
 ```
 
 Look for log lines like:
-```
+```text
 DEBUG xremap > key event: KeyEvent { key: KEY_CAPSLOCK, ... }
 ```
 

@@ -1,5 +1,5 @@
 ---
-title: "Application and Device Filtering in xremap"
+title: "Filtering by Application, Window, or Device in xremap"
 sidebarTitle: "App & Device Filters"
 description: "Apply remappings only to specific applications, window titles, or input devices using xremap's application, window, and device filter options."
 ---
@@ -29,13 +29,17 @@ application:
 
 ### Matching rules
 
-Application names can be:
-- An **exact string**: `"firefox"` matches only the class named exactly `firefox`.
-- A **regex** surrounded by `/`: `"/firefox/"` matches any class containing `firefox` (case-sensitive by default).
+Application names can be specified in three ways:
+
+- A **plain string without a dot** (e.g. `firefox`): matches the class name or the final segment after the last `.` in the class. For example, `firefox` matches both `firefox` and `org.mozilla.firefox`.
+- A **plain string with a dot** (e.g. `org.mozilla.firefox`): matches the full class string exactly — no substring or tail matching.
+- A **regex** surrounded by `/` (e.g. `/firefox/`): matched as a regular expression against the full class string. Case-sensitive by default.
 
 ```yaml
 application:
-  only: [/jetbrains/, /code/]   # Matches any JetBrains IDE or VS Code variant
+  only: [firefox]           # Matches 'firefox' or 'org.mozilla.firefox'
+  # only: [org.mozilla.firefox] # Matches only the full class 'org.mozilla.firefox'
+  # only: [/jetbrains/, /code/] # Regex: matches any JetBrains IDE or VS Code variant
 ```
 
 ### Finding application names

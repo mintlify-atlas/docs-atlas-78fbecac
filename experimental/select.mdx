@@ -1,5 +1,5 @@
 ---
-title: "Select Operator for Competing Remaps in xremap"
+title: "xremap Select: Choose Between Competing Key Operators"
 sidebarTitle: "Select"
 description: "Use xremap's select operator to choose between competing experimental_map operators like double-tap, oneshot, and throttle based on priority order."
 ---
@@ -21,6 +21,8 @@ The `select` operator lets you stack multiple `experimental_map` operators on th
 <Note>
   Operators should use **short timeouts** inside a `select` block. Because events are buffered until a decision is made, a long timeout will cause a noticeable pause before any key output appears. Keep timeouts short enough that the delay is imperceptible.
 </Note>
+
+Working since **v0.15.12**.
 
 The operators that work with `select` are: [double tap](/experimental/double-tap), [chords](/experimental/chords), [oneshot](/experimental/oneshot), and [throttle](/experimental/throttle).
 

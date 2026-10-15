@@ -1,5 +1,5 @@
 ---
-title: "Global Configuration Options for xremap"
+title: "xremap Global Configuration Options: All Top-Level Keys"
 sidebarTitle: "Global Options"
 description: "All top-level xremap configuration options: virtual_modifiers, keypress_delay_ms, throttle_ms, default_mode, notifications, and more."
 ---
@@ -119,7 +119,7 @@ notifications: true
 ```
 
 <Note>
-  The key is misspelled `notififactions` (with an extra `fi`) in the reference documentation; both spellings are accepted by xremap. Using the correctly-spelled `notifications` is recommended.
+  The key `notifications` is misspelled as `notififactions` (with an extra `fi`) in xremap's own reference documentation. The actual YAML key accepted by xremap is `notifications` (the correctly-spelled version), which is derived directly from the Rust struct field name. Use `notifications` in your config.
 </Note>
 
 Notifications are sent via the standard desktop notification D-Bus interface and will appear in whatever notification daemon your desktop environment provides.

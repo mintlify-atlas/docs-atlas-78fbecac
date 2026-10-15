@@ -1,7 +1,7 @@
 ---
-title: "xremap: Linux Key Remapper for X11 and Wayland"
+title: "xremap: Dynamic Linux Key Remapper for X11 and Wayland"
 sidebarTitle: "Introduction"
-description: "xremap is a dynamic key remapper for Linux that supports app-specific remapping, key sequences, and both X11 and Wayland desktops."
+description: "xremap remaps keys at the kernel level using evdev and uinput, with app-specific rules, key sequences, and support for X11 and Wayland desktops."
 ---
 
 xremap is a dynamic key remapper for Linux that intercepts keyboard events at the kernel level using `evdev` and re-emits transformed events through `uinput`. Because it operates below the display-server layer, it works identically on X11 and Wayland without any protocol-specific hacks — making it one of the few remappers that travels cleanly across desktop environments.
@@ -22,7 +22,7 @@ xremap reads the active window from your desktop environment (GNOME, KDE, Hyprla
 
 ## Core concepts
 
-A config file is a YAML document (JSON also works) with up to three top-level keys: `modmap`, `keymap`, and `virtual_modifiers`. Understanding how events flow through each layer is the key to writing effective configs.
+A config file is a YAML document (JSON also works) with top-level keys including `modmap`, `keymap`, and global options such as `default_mode`. Understanding how events flow through each layer is the key to writing effective configs.
 
 ### Event flow
 
@@ -65,9 +65,9 @@ Remapping a key **to** a modifier — for example `CapsLock → Ctrl_L` — must
 - Switch named modes to enable or disable entire rule sets
 - Use `exact_match: true` to match only when exactly the listed modifiers are held
 
-### virtual_modifiers (experimental)
+### virtual_modifiers
 
-`virtual_modifiers` lets you designate a non-modifier key (for example `CapsLock`) as a virtual modifier that can be used in `keymap` combo expressions just like `Ctrl` or `Alt`. This is an experimental feature; consult the reference documentation before relying on it in production configs.
+`virtual_modifiers` is a top-level config key that lets you designate a non-modifier key (for example `CapsLock`) as a virtual modifier. Once declared, that key can be used in `keymap` combo expressions just like `Ctrl` or `Alt`. Consult the reference documentation for the exact syntax and limitations.
 
 ### Application and device filters
 
@@ -118,13 +118,10 @@ keymap:
     Trigger shell commands on key press or release events using the `launch` action.
   </Card>
   <Card title="Virtual modifier keys" icon="key">
-    Promote any key to act as a modifier inside `keymap` combos.
+    Declare any non-modifier key as a virtual modifier so it can be used in `keymap` combo expressions just like `Ctrl` or `Alt`.
   </Card>
   <Card title="Named modes" icon="sliders">
     Toggle named modes at runtime to switch entire rule sets on or off with a single keystroke.
-  </Card>
-  <Card title="Non-modifier key as modifier" icon="plus">
-    Use a regular key as a virtual modifier for custom chord layouts.
   </Card>
 </CardGroup>
 
@@ -134,7 +131,7 @@ xremap is written in **Rust**, which means it compiles to a single native binary
 
 xremap integrates with desktop environments through optional Cargo **feature flags** compiled into the binary. The `full` variant (available since v0.15.13) includes all desktop integrations in one binary. Narrower variants are available when binary size matters.
 
-| Feature flag | Desktop / WM |
+| Feature flag | Desktop / WM / purpose |
 |---|---|
 | `gnome` | GNOME Shell (X11 and Wayland) |
 | `x11` | Generic X11 |
@@ -145,7 +142,8 @@ xremap integrates with desktop environments through optional Cargo **feature fla
 | `cosmic` | COSMIC |
 | `pantheon` | Pantheon (elementary OS) |
 | `socket` | Unix socket interface |
-| `full` | All of the above |
+| `udev` | udev-based device discovery |
+| `full` | All desktop integrations (gnome, x11, hypr, kde, wlroots, niri, cosmic, pantheon, socket) |
 
 ## Next steps
 

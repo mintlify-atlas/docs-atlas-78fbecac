@@ -1,10 +1,14 @@
 ---
-title: "modmap Actions Reference"
+title: "xremap modmap Actions: All Three Remap Types Explained"
 sidebarTitle: "modmap Actions"
-description: "The modmap section has different actions than keymap: key-to-key remaps, multi-purpose keys, and press/release triggers with keymap actions."
+description: "The modmap section supports three action types: key-to-key remaps, multi-purpose tap-hold keys, and press/release keys that can trigger keymap actions."
 ---
 
-The `modmap` section handles low-level key-to-key remapping and runs before `keymap`. Its actions are distinct from those available in `keymap` — there is no `null` action, and the way keys are pressed and released differs by action type. Understanding the three `modmap` action types and their differences will help you build the right remap for each use case.
+The `modmap` section handles low-level key-to-key remapping and runs before `keymap`. Its actions are distinct from those available in `keymap`. Understanding the three `modmap` action types and their differences will help you build the right remap for each use case.
+
+<Note>
+`modmap` does **not** support a `null` action to suppress a key. Unlike `experimental_map`, there is no way to silently swallow a key in a pure `modmap` entry. To suppress a key's effect in `modmap`, map it to an empty list (`[]`) for a key-to-key remap, or use `skip_key_event: true` in a press/release key entry.
+</Note>
 
 ## Overview of modmap Action Types
 

@@ -1,5 +1,5 @@
 ---
-title: "Configuring keymap in xremap"
+title: "keymap in xremap: Combos, Sequences and Action Dispatch"
 sidebarTitle: "keymap"
 description: "The keymap section remaps key combos and sequences. Covers exact_match, key sequences, action dispatch, and first-match priority ordering."
 ---
@@ -80,15 +80,30 @@ keymap:
 
 ### Key combo → action
 
-xremap supports a set of built-in named actions:
+xremap supports a set of built-in named actions via the `action` key:
+
+| Action | Description |
+|---|---|
+| `reload` | Full reload — restarts xremap's internals and reloads the config |
+| `reload_config` | Partial reload — reloads only the configuration file |
+| `exit` | Quit xremap |
+| `pop_window_info` | Remove the most recently recorded window info |
+| `print_window_info` | Print the active window info to the log |
+| `print_window_list` | Print all open windows to the log |
 
 ```yaml
 keymap:
   - remap:
-      F9: { action: reload }         # Reload xremap config
+      F9:  { action: reload }           # Reload config
+      F10: { action: exit }             # Quit xremap
+      F11: { action: print_window_list } # Dump all open windows to log
 ```
 
-Available actions include `reload`. See the [Actions reference](/reference/keymap-actions) for the full list.
+<Note>
+  After `exit` or `reload` / `reload_config`, no further actions in the same sequence are allowed — xremap will reject the config with a validation error.
+</Note>
+
+See the [Actions reference](/reference/keymap-actions) for the full list including additional actions.
 
 ### Key combo → launch command
 
@@ -151,6 +166,29 @@ Tells xremap to pass the very next key press through to the OS without evaluatin
 keymap:
   - remap:
       Ctrl-q: { escape_next_key: true }
+```
+
+### Sleep action
+
+Insert a delay (in milliseconds) between events in a sequence:
+
+```yaml
+keymap:
+  - remap:
+      Super-T:
+        - { launch: ["xdg-open", "https://example.com"] }
+        - { sleep: 100 }
+        - Ctrl-L
+```
+
+### Close app by class
+
+Close all windows belonging to a given application class:
+
+```yaml
+keymap:
+  - remap:
+      Super-W: { close_apps: firefox }
 ```
 
 ### Set mode from keymap

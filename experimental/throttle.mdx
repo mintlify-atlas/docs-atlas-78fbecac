@@ -1,7 +1,7 @@
 ---
-title: "Key Throttle: Prevent Rapid Re-presses in xremap"
+title: "Key Throttle in xremap: Prevent Rapid Key Re-presses"
 sidebarTitle: "Throttle"
-description: "Use xremap's throttle_ms operator to prevent accidental key re-presses or fix faulty keyboards that emit double key events."
+description: "Use xremap's throttle_ms operator to prevent accidental key re-presses or fix faulty keyboards that emit spurious duplicate key events."
 ---
 
 The `throttle_ms` operator controls how quickly a key can be reused. After a key's first press-repeat-release cycle, all further events from that key are suppressed until the timeout expires. This is useful both for protecting against accidental double presses and for working around faulty keyboards that emit spurious duplicate events.

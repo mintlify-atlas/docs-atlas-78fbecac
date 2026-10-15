@@ -1,5 +1,5 @@
 ---
-title: "xremap Configuration File Structure"
+title: "xremap Configuration File: Structure and Options Guide"
 sidebarTitle: "Overview"
 description: "Understand the structure of xremap's YAML config file: modmap, keymap, experimental_map, global options, and how key events flow through each layer."
 ---
@@ -8,7 +8,7 @@ xremap reads its configuration from one or more YAML files. The format is also f
 
 ## File format
 
-Configuration files are written in **YAML** (a superset of JSON). File names conventionally end in `.yml` or `.yaml`, though xremap accepts any path you give it on the command line.
+Configuration files are written in **YAML** (a superset of JSON). File names conventionally end in `.yml` or `.yaml`. xremap also supports **TOML** — any file whose name ends in `.toml` is parsed as TOML rather than YAML. Both formats are fully supported.
 
 ```yaml
 # Minimal working config
@@ -26,7 +26,7 @@ keymap:
 
 When a physical key is pressed, xremap processes it in a fixed pipeline:
 
-```
+```text
 Physical key press
       │
       ▼

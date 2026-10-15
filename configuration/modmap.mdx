@@ -1,5 +1,5 @@
 ---
-title: "Configuring modmap in xremap"
+title: "modmap in xremap: Key Remapping and Multi-Purpose Keys"
 sidebarTitle: "modmap"
 description: "The modmap section remaps individual keys. Learn key-to-key mapping, multi-purpose keys, disabling keys, and application or device filters."
 ---
@@ -121,8 +121,8 @@ Both `held` and `alone` accept arrays, so you can send multiple keys in either c
   When `true`, the held key is released as soon as the co-pressed key is released, rather than waiting for the trigger key itself to be released.
 </ParamField>
 
-<ParamField path="interruptable" type="boolean">
-  Controls whether rapid subsequent key presses interrupt the alone/held decision.
+<ParamField path="interruptable" type="boolean | { only: key | key[] } | { not: key | key[] }">
+  Controls which key presses interrupt the alone/held decision. Accepts a boolean (`true` = any key interrupts, `false` = no key interrupts), or an object with `only` or `not` to allow/block specific keys. By default, mouse movement events do not interrupt a multi-purpose key tap.
 </ParamField>
 
 ### Press/release key

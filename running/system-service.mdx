@@ -1,7 +1,7 @@
 ---
-title: "Run xremap as a systemd System Service"
+title: "xremap System Service: Boot-time Key Remapping Setup"
 sidebarTitle: "System Service"
-description: "Configure xremap as a systemd system service that starts at boot. Includes socket feature setup for app-specific remapping."
+description: "Run xremap as a system-wide service with a dedicated user. Covers socket feature setup, per-user groups, and app-specific remapping with GNOME or --bridge."
 ---
 
 Running xremap as a systemd system service is the most secure way to operate it. The service starts at boot (before any user logs in), runs under a dedicated `xremap` system user with minimal privileges, and restarts automatically on failure. These instructions apply to xremap **v0.15.13 and later**. If you were previously using two separate binaries for the socket and bridge features, remember to pass `--desktop=socket` in the service's `ExecStart` — the socket feature can no longer be auto-detected.

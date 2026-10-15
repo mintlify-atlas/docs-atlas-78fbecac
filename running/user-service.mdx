@@ -1,7 +1,7 @@
 ---
-title: "Run xremap as a systemd User Service"
+title: "xremap User Service: Autostart on Login with systemd"
 sidebarTitle: "User Service"
-description: "Set up xremap as a systemd user service so it starts automatically on login and restarts on failure."
+description: "Autostart xremap on login using a systemd user service. Includes the service file content, enable and start commands, and the XDG autostart alternative."
 ---
 
 Running xremap as a systemd user service is the recommended way to have it start automatically every time you log in. The service runs as your normal user and restarts xremap if it ever crashes, with no manual intervention required. Before continuing, make sure you can already [run xremap without sudo](./without-sudo) — the user service is essentially an autostart wrapper around that configuration.
@@ -70,7 +70,7 @@ Running xremap as a systemd user service is the recommended way to have it start
 
 <Step title="Start the service">
   ```bash
-  systemctl --user start xremap.service
+  sudo systemctl --user start xremap.service
   ```
 </Step>
 
@@ -78,17 +78,27 @@ Running xremap as a systemd user service is the recommended way to have it start
   To start xremap automatically every time you log in, enable the service:
 
   ```bash
-  systemctl --user enable xremap.service
+  sudo systemctl --user enable xremap.service
   ```
 
   <Note>
-    On some desktop environments, enabling the service this way may cause xremap to start before the window manager is fully ready, breaking application-specific remapping. If that happens, use the autostart file instead:
+    On some desktop environments, enabling the service this way may cause xremap to start before the window manager is fully ready, breaking application-specific remapping. If that happens, use the XDG autostart file instead.
+
+    The `example/xremap.desktop` file from the repository starts the service via your desktop's autostart mechanism, which waits until the session is ready:
+
+    ```ini
+    [Desktop Entry]
+    Name=Xremap
+    Type=Application
+    Exec=systemctl --user start xremap
+    Terminal=false
+    ```
+
+    Copy it to the autostart directory:
 
     ```bash
     cp example/xremap.desktop ~/.config/autostart/xremap.desktop
     ```
-
-    This relies on your desktop's XDG autostart support and delays xremap until the session is ready.
   </Note>
 </Step>
 
@@ -101,7 +111,8 @@ Running xremap as a systemd user service is the recommended way to have it start
 Whenever you edit `xremap.service`, reload the unit definitions and restart the service:
 
 ```bash
-systemctl --user daemon-reload && systemctl --user restart xremap.service
+sudo systemctl --user daemon-reload
+sudo systemctl --user restart xremap.service
 ```
 
 ---
@@ -112,8 +123,8 @@ Check whether the service is running and inspect recent output:
 
 ```bash
 # Show current status
-systemctl --user status xremap.service
+sudo systemctl --user status xremap.service
 
 # Follow the live log stream
-journalctl -fu xremap.service
+sudo journalctl -fu xremap.service
 ```
